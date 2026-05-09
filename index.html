@@ -2170,35 +2170,77 @@ function updateLiveWidget() {
 // ═══════════════════════════════════════════════════════════
 // LEADERBOARD
 // ═══════════════════════════════════════════════════════════
-const LB_DATA = [
-  {n:'James J.',i:'JJ',c:'#5CB85C',bg:'rgba(92,184,92,0.15)',w:18,t:22,tk:820,s:7,you:true},
-  {n:'Mike R.',i:'MR',c:'#fb923c',bg:'rgba(200,100,50,0.15)',w:21,t:27,tk:980,s:12},
-  {n:'Sofia K.',i:'SK',c:'#38bdf8',bg:'rgba(0,150,200,0.15)',w:19,t:24,tk:870,s:9},
-  {n:'Andre T.',i:'AT',c:'#4ade80',bg:'rgba(30,180,100,0.15)',w:16,t:21,tk:720,s:5},
-  {n:'Zach B.',i:'ZB',c:'#c084fc',bg:'rgba(150,50,220,0.15)',w:15,t:20,tk:680,s:3},
-  {n:'Toni M.',i:'TM',c:'#ff7070',bg:'rgba(255,71,71,0.15)',w:14,t:19,tk:620,s:8},
-];
+// Leaderboard pulls from Supabase — no fake data
 
-function renderLBWidget() {
-  const sorted = [...LB_DATA].sort((a,b)=>b.w/b.t-a.w/a.t).slice(0,4);
-  document.getElementById('lbWidget').innerHTML = sorted.map((p,i) => `
-    <div class="lb-row" style="${p.you?'background:var(--green-glow);border-radius:var(--r);padding:8px 6px;margin:0 -6px':''}">
-      <div class="lb-pos ${i<3?'gold':''}">${i+1}</div>
-      <div class="lb-av" style="background:${p.bg};color:${p.c}">${p.i}</div>
-      <div class="lb-name-wrap"><div class="lb-name">${p.n}${p.you?' <span style="font-size:9px;color:var(--green)">(you)</span>':''}</div><div class="lb-streak">🔥 ${p.s}d streak</div></div>
-      <div class="lb-right"><div class="lb-rec">${p.w}–${p.t-p.w}</div><div class="lb-tix">🎟 ${p.tk}</div></div>
-    </div>`).join('');
+async function renderLBWidget() {
+  const el = document.getElementById('lbWidget');
+  if (!el) return;
+  try {
+    const { data } = await sb.from('profiles')
+      .select('username, tickets, streak')
+      .order('tickets', { ascending: false })
+      .limit(4);
+    if (!data || !data.length) {
+      el.innerHTML = `<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">Be the first on the board!<br><span style="color:var(--green);cursor:pointer" onclick="openOverlay('authOverlay')">Sign up →</span></div>`;
+      return;
+    }
+    el.innerHTML = data.map((p,i) => {
+      const isYou = currentUser && userProfile && p.username === userProfile.username;
+      const initial = (p.username||'?')[0].toUpperCase();
+      return `<div class="lb-row" style="${isYou?'background:var(--green-glow);border-radius:var(--r);padding:8px 6px;margin:0 -6px':''}">
+        <div class="lb-pos ${i<3?'gold':''}">${i+1}</div>
+        <div class="lb-av" style="background:var(--surface2);color:var(--green);width:26px;height:26px;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:50%">${initial}</div>
+        <div class="lb-name-wrap">
+          <div class="lb-name">${esc(p.username||'Player')}${isYou?' <span style="font-size:9px;color:var(--green)">(you)</span>':''}</div>
+          <div class="lb-streak">🔥 ${p.streak||0}d streak</div>
+        </div>
+        <div class="lb-right">
+          <div class="lb-tix" style="font-family:var(--font-display);font-size:18px;color:var(--gold)">🎟 ${(p.tickets||0).toLocaleString()}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--muted)">Loading...</div>';
+  }
 }
 
-function renderFullLB() {
-  const sorted = [...LB_DATA].sort((a,b)=>b.w/b.t-a.w/a.t);
-  document.getElementById('fullLB').innerHTML = sorted.map((p,i) => `
-    <div class="lb-row" style="padding:14px 0;${p.you?'background:var(--green-glow);border-radius:var(--r);padding:14px 10px;margin:0 -10px':''}">
-      <div class="lb-pos ${i<3?'gold':''}" style="font-size:20px;width:28px">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
-      <div class="lb-av" style="background:${p.bg};color:${p.c};width:34px;height:34px;font-size:13px">${p.i}</div>
-      <div class="lb-name-wrap"><div class="lb-name" style="font-size:14px">${p.n}${p.you?' <span style="font-size:10px;color:var(--green)">(you)</span>':''}</div><div class="lb-streak">🔥 ${p.s}-day streak</div></div>
-      <div class="lb-right"><div class="lb-rec" style="font-size:20px">${p.w}–${p.t-p.w}</div><div class="lb-tix">🎟 ${p.tk}</div></div>
-    </div>`).join('');
+async function renderFullLB() {
+  const el = document.getElementById('fullLB');
+  if (!el) return;
+  el.innerHTML = '<div class="loading-state"><div class="spinner"></div><div class="loading-text">Loading leaderboard...</div></div>';
+  try {
+    const { data } = await sb.from('profiles')
+      .select('id, username, tickets, streak')
+      .order('tickets', { ascending: false })
+      .limit(20);
+    if (!data || !data.length) {
+      el.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--muted2)">
+        <div style="font-size:32px;margin-bottom:8px">🏆</div>
+        <div style="font-size:14px;margin-bottom:4px">No players yet</div>
+        <div style="font-size:12px;color:var(--muted)">Be the first on the leaderboard!</div>
+        <button onclick="openOverlay('authOverlay')" class="btn-join" style="margin-top:1rem;padding:10px 24px;font-size:11px">Sign Up Free →</button>
+      </div>`;
+      return;
+    }
+    el.innerHTML = data.map((p,i) => {
+      const isYou = currentUser?.id === p.id;
+      const initial = (p.username||'?')[0].toUpperCase();
+      const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1;
+      return `<div class="lb-row" style="padding:14px 0;${isYou?'background:var(--green-glow);border-radius:var(--r);padding:14px 10px;margin:0 -10px':''}">
+        <div class="lb-pos gold" style="font-size:${i<3?'20':'16'}px;width:28px">${medal}</div>
+        <div class="lb-av" style="background:var(--surface2);color:var(--green);width:34px;height:34px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:50%">${initial}</div>
+        <div class="lb-name-wrap">
+          <div class="lb-name" style="font-size:14px">${esc(p.username||'Player')}${isYou?' <span style="font-size:10px;color:var(--green)">(you)</span>':''}</div>
+          <div class="lb-streak">🔥 ${p.streak||0}-day streak</div>
+        </div>
+        <div class="lb-right">
+          <div style="font-family:var(--font-display);font-size:20px;color:var(--gold)">🎟 ${(p.tickets||0).toLocaleString()}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Leaderboard loading...</div>';
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3007,10 +3049,11 @@ async function loadUserProfile() {
 
 function updateAllUI() {
   updateStreakUI();
-  addTickets(0); // refresh ticket display
+  addTickets(0);
   updatePicksUI();
   renderMyTeams();
   updateAuthUI();
+  renderLBWidget(); // refresh with real data
 }
 
 function updateAuthUI() {
