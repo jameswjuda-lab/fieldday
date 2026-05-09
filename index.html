@@ -1529,97 +1529,101 @@ const BIG_MARKETS = ['lakers','celtics','warriors','bulls','knicks','yankees','d
 async function fetchBoxingMMA(sport) {
   const el = document.getElementById('feedContent');
   const isBoxing = sport === 'boxing';
+  const label = isBoxing ? 'Boxing' : 'MMA / UFC';
+  const icon = isBoxing ? '🥊' : '🥋';
   const redditSub = isBoxing ? 'boxing' : 'MMA';
-  el.innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Loading ${isBoxing?'Boxing':'MMA / UFC'} events...</div></div>`;
-  
-  try {
-    
-    // Try multiple ESPN paths for combat sports
-    const espnPaths = isBoxing 
-      ? ['boxing/boxing', 'boxing']
-      : ['mma/ufc', 'mma'];
-    
-    let scoreData = null, newsData = null;
-    for (const path of espnPaths) {
-      try {
-        scoreData = await cachedFetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`, 60000);
-        if (scoreData?.events?.length) break;
-      } catch(e) {}
-      try {
-        newsData = await cachedFetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/news?limit=15`, 120000);
-        if (newsData?.articles?.length) break;
-      } catch(e) {}
-    }
 
-    // UFC official event data
-    let ufcEvents = [];
-    if (!isBoxing) {
-      try {
-        const ufcD = await cachedFetch('', 120000);
-        ufcEvents = ufcD?.data || [];
-      } catch(e) {}
-    }
+  el.innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Loading ${label} events...</div></div>`;
 
-    const [redditData] = await Promise.all([
-      cachedFetch(`https://www.reddit.com/r/${redditSub}/hot.json?limit=15`, 120000).catch(()=>null),
-    ]);
+  // TheSportsDB — free, no key, has boxing & MMA
+  // League IDs: Boxing = 4424 (not right), use search instead
+  const sportsDbId = isBoxing ? '4424' : '4335';
 
-    const events = (scoreData?.events||[]).map(ev => ({...parseEvent(ev), sport}));
-    const news = newsData?.articles || [];
+  const [eventsData, newsData, redditData] = await Promise.all([
+    cachedFetch(`https://www.thesportsdb.com/api/v1/json/3/eventsnextleague.php?id=${sportsDbId}`, 120000).catch(()=>null),
+    cachedFetch(`https://site.api.espn.com/apis/site/v2/sports/${isBoxing?'boxing/boxing':'mma/ufc'}/news?limit=15`, 120000).catch(()=>null),
+    cachedFetch(`https://www.reddit.com/r/${redditSub}/hot.json?limit=12`, 120000).catch(()=>null),
+  ]);
 
-    // Reddit takes for boxing
-    try {
-      const rd = await cachedFetch(`https://www.reddit.com/r/${redditSub}/hot.json?limit=8`, 120000);
-      redditPosts2 = (rd?.data?.children||[]).map(p=>({
-        title:p.data.title, url:'https://reddit.com'+p.data.permalink,
-        score:p.data.score, comments:p.data.num_comments, sub:p.data.subreddit
-      }));
-    } catch(e){}
+  const events = eventsData?.events || [];
+  // Store in extraGamesCache so picks work
+  extraGamesCache = [...extraGamesCache.filter(g=>g.sport!==sport), ...events.map(ev=>({
+    id: ev.idEvent||Math.random().toString(),
+    sport: sport,
+    isUpcoming:true, isFinal:false, isLive:false,
+    date: ev.dateEvent ? new Date(ev.dateEvent+'T'+(ev.strTime||'00:00:00')).toISOString() : new Date().toISOString(),
+    status: 'Upcoming',
+    home:{name:ev.strHomeTeam||'Fighter 1',short:(ev.strHomeTeam||'F1').slice(0,3).toUpperCase(),logo:null,score:0,rec:'',injuries:[]},
+    away:{name:ev.strAwayTeam||'Fighter 2',short:(ev.strAwayTeam||'F2').slice(0,3).toUpperCase(),logo:null,score:0,rec:'',injuries:[]},
+    headline:null, broadcast:null, homeWins:false, awayWins:false,
+  }))];
+  const articles = newsData?.articles || [];
+  const posts = (redditData?.data?.children || []).map(p => p.data);
 
-    const icon = isBoxing?'🥊':'🥋';
-    const label = isBoxing?'Boxing':'MMA / UFC';
+  el.innerHTML = `
+    <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border)">
+      <div style="font-family:var(--font-display);font-size:26px;letter-spacing:2px">${icon} ${label.toUpperCase()}</div>
+      <div style="font-size:12px;color:var(--muted2)">Upcoming events · News · Community</div>
+    </div>
 
-    el.innerHTML = `
-      <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border)">
-        <div style="font-family:var(--font-display);font-size:26px;letter-spacing:2px">${icon} ${label.toUpperCase()}</div>
-        <div style="font-size:12px;color:var(--muted2)">Events · News · Community takes</div>
+    ${events.length ? `
+      <div style="padding:0.5rem 1.5rem;background:var(--surface);border-bottom:1px solid var(--border);font-size:9px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted)">${icon} Upcoming Events</div>
+      ${events.slice(0,5).map((ev,i) => `
+        <div style="border-bottom:1px solid var(--border);padding:1.25rem 1.5rem;animation:fadeUp 0.3s ease both;animation-delay:${(i*0.05).toFixed(2)}s">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--text)">${esc(ev.strEvent||'')}</div>
+              <div style="font-size:11px;color:var(--muted2);margin-top:2px">${esc(ev.strVenue||'')} · ${esc(ev.strCity||'')}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-family:var(--font-display);font-size:16px;color:var(--green)">${ev.dateEvent ? new Date(ev.dateEvent).toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'}) : 'TBD'}</div>
+              <div style="font-size:10px;color:var(--muted)">${esc(ev.strTime||'')}</div>
+            </div>
+          </div>
+          <div class="pick-btns">
+            <div class="pick-btn" onclick="doPick('${esc(ev.idEvent||'')}','away',this)" data-game="${esc(ev.idEvent||'')}" data-side="away">
+              <div class="pick-btn-team">${esc(ev.strHomeTeam||'Fighter 1')}</div>
+              <div class="pick-btn-reward">+15 🎟 if correct</div>
+            </div>
+            <div style="display:flex;align-items:center;padding:0 8px;color:var(--muted);font-size:11px;font-weight:700">VS</div>
+            <div class="pick-btn" onclick="doPick('${esc(ev.idEvent||'')}','home',this)" data-game="${esc(ev.idEvent||'')}" data-side="home">
+              <div class="pick-btn-team">${esc(ev.strAwayTeam||'Fighter 2')}</div>
+              <div class="pick-btn-reward">+15 🎟 if correct</div>
+            </div>
+          </div>
+        </div>`).join('')}
+    ` : `
+      <div style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;color:var(--muted2);margin-bottom:8px">No ${label} events scheduled right now.</div>
+        <a href="https://www.espn.com/${isBoxing?'boxing':'mma'}" target="_blank" style="color:var(--green);text-decoration:none;font-size:12px;font-weight:600">View full ${label} schedule on ESPN →</a>
       </div>
+    `}
 
-      ${events.length ? `
-        <div style="padding:0.6rem 1.5rem;background:var(--surface);border-bottom:1px solid var(--border);font-size:9px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted)">Events</div>
-        ${events.map((g,i)=>gameCardHtml(g,i)).join('')}
-      ` : `<div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border)">
-        <div style="font-size:13px;color:var(--muted2)">No ${label} events scheduled right now.</div>
-        <a href="https://www.espn.com/${isBoxing?'boxing':'mma'}" target="_blank" style="font-size:12px;color:var(--green);text-decoration:none">View schedule on ESPN →</a>
-      </div>`}
+    ${articles.length ? `
+      <div style="padding:0.5rem 1.5rem;background:var(--surface);border-bottom:1px solid var(--border);font-size:9px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted)">📰 Latest News</div>
+      ${articles.slice(0,5).map((a,i) => `
+        <div style="border-bottom:1px solid var(--border);padding:1rem 1.5rem;cursor:pointer;transition:background 0.15s;animation:fadeUp 0.3s ease both;animation-delay:${(i*0.04+0.25).toFixed(2)}s" onclick="window.open('${esc(a.links?.web?.href||'#')}','_blank')" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">
+          <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px">${esc(a.headline||a.title||'')}</div>
+          ${a.description ? `<div style="font-size:11px;color:var(--muted2)">${esc(a.description.slice(0,120))}...</div>` : ''}
+        </div>`).join('')}
+    ` : ''}
 
-      ${news.length ? `
-        <div style="padding:0.6rem 1.5rem;background:var(--surface);border-bottom:1px solid var(--border);font-size:9px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted)">Latest News</div>
-        ${news.slice(0,5).map(a=>`
-          <div style="border-bottom:1px solid var(--border);padding:1rem 1.5rem;transition:background 0.15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">
-            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;cursor:pointer;line-height:1.4" onclick="window.open('${a.links?.web?.href||'#'}','_blank')">${esc(a.headline||a.title||'')}</div>
-            ${a.description?`<div style="font-size:12px;color:var(--muted2);line-height:1.5">${esc(a.description.slice(0,140))}...</div>`:''}
-          </div>`).join('')}
-      ` : ''}
+    ${posts.length ? `
+      <div style="padding:0.5rem 1.5rem;background:var(--surface);border-bottom:1px solid var(--border);font-size:9px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted)">🔥 r/${redditSub} — Hot Takes</div>
+      ${posts.slice(0,8).map((p,i) => `
+        <div style="border-bottom:1px solid var(--border);padding:1rem 1.5rem;transition:background 0.15s;animation:fadeUp 0.3s ease both;animation-delay:${(i*0.03+0.5).toFixed(2)}s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">
+          <div style="font-size:13px;font-weight:500;color:var(--text);line-height:1.4;margin-bottom:5px;cursor:pointer" onclick="window.open('https://reddit.com${esc(p.permalink)}','_blank')">${esc(p.title)}</div>
+          <div style="font-size:10px;color:var(--muted)">▲ ${fmtN(p.score)} · 💬 ${fmtN(p.num_comments)} · <span style="color:var(--green);cursor:pointer;font-weight:600" onclick="window.open('https://reddit.com${esc(p.permalink)}','_blank')">View →</span></div>
+        </div>`).join('')}
+    ` : ''}
 
-      ${redditPosts2.length ? `
-        <div style="padding:0.6rem 1.5rem;background:var(--surface);border-bottom:1px solid var(--border);font-size:9px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted)">🔥 Community Takes · r/${redditSub}</div>
-        ${redditPosts2.map(p=>`
-          <div style="border-bottom:1px solid var(--border);padding:1rem 1.5rem;transition:background 0.15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='transparent'">
-            <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:5px;cursor:pointer;line-height:1.4" onclick="window.open('${esc(p.url)}','_blank')">${esc(p.title)}</div>
-            <div style="font-size:11px;color:var(--muted)">▲ ${fmtN(p.score)} · 💬 ${fmtN(p.comments)}</div>
-          </div>`).join('')}
-      ` : ''}
-
-      <div style="padding:1.25rem 1.5rem;text-align:center;border-top:1px solid var(--border)">
-        <a href="https://www.espn.com/${isBoxing?'boxing':'mma'}" target="_blank" style="font-size:12px;color:var(--green);text-decoration:none;font-weight:600">Full ${label} coverage on ESPN →</a>
-        <span style="color:var(--muted);margin:0 10px">·</span>
-        <a href="https://www.reddit.com/r/${redditSub}" target="_blank" style="font-size:12px;color:var(--green);text-decoration:none;font-weight:600">r/${redditSub} →</a>
-      </div>`;
-  } catch(e) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">${sport==='boxing'?'🥊':'🥋'}</div><div class="empty-text">${sport==='boxing'?'Boxing':'MMA'} data loading...<br><a href="https://www.espn.com/${isBoxing?'boxing':'mma'}" target="_blank" style="color:var(--green)">View on ESPN →</a></div></div>`;
-  }
+    <div style="padding:1rem 1.5rem;text-align:center;border-top:1px solid var(--border)">
+      <a href="https://www.espn.com/${isBoxing?'boxing':'mma'}" target="_blank" style="color:var(--green);text-decoration:none;font-size:12px;font-weight:600">Full ${label} coverage on ESPN →</a>
+      <span style="color:var(--muted);margin:0 10px">·</span>
+      <a href="https://www.reddit.com/r/${redditSub}" target="_blank" style="color:var(--green);text-decoration:none;font-size:12px;font-weight:600">r/${redditSub} →</a>
+    </div>`;
 }
+
 
 async function fetchBigGames() {
   const el = document.getElementById('feedContent');
