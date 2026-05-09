@@ -874,7 +874,7 @@ let allGames = [];
 let extraGamesCache = []; // tomorrow's games from MLB/NHL APIs
 let activeSport = 'all';
 let activeFeed = 'all';
-let tickets = parseInt(localStorage.getItem('fd_tickets')||'340');
+let tickets = parseInt(localStorage.getItem('fd_tickets')||'0');
 let streak = parseInt(localStorage.getItem('fd_streak')||'0');
 let lastPickDate = localStorage.getItem('fd_lastpick')||'';
 
@@ -2986,8 +2986,19 @@ async function submitAuth() {
       const username = document.getElementById('authUsername')?.value?.trim() || email.split('@')[0];
       const { data, error } = await sb.auth.signUp({ email, password, options: { data: { username } } });
       if (error) throw error;
-      // Profile auto-created by trigger
-      showAuthError('✓ Check your email to confirm your account!', true);
+      if (data?.user) {
+        currentUser = data.user;
+        // Wait a moment for the trigger to create the profile
+        await new Promise(r => setTimeout(r, 1000));
+        await loadUserProfile();
+        closeOverlay('authOverlay');
+        updateAuthUI();
+        // Land on Big Games
+        activeFeed = 'upcoming';
+        syncFeedActive('upcoming');
+        fetchBigGames();
+        toast('🎉 Welcome to Field Day! Make your first pick to earn tickets!', 'gold');
+      }
     } else {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -2995,7 +3006,10 @@ async function submitAuth() {
       await loadUserProfile();
       closeOverlay('authOverlay');
       updateAuthUI();
-      toast('Welcome back! 🔥', 'gold');
+      activeFeed = 'upcoming';
+      syncFeedActive('upcoming');
+      fetchBigGames();
+      toast('Welcome back! 🔥 ' + streak + '-day streak', 'gold');
     }
   } catch(e) {
     showAuthError(e.message || 'Something went wrong');
@@ -3306,12 +3320,10 @@ function obNext(screen) {
 function finishOnboarding() {
   localStorage.setItem('fd_onboarded', '1');
   closeOverlay('onboardingOverlay');
-  addTickets(50);
-  // Send straight to Big Games so first action is making a pick
   activeFeed = 'upcoming';
   syncFeedActive('upcoming');
   fetchBigGames();
-  setTimeout(() => toast('🎉 +50 🎟 — make your first pick!', 'gold'), 600);
+  setTimeout(() => toast('Make your first pick to earn tickets! 🎯', 'gold'), 600);
 }
 
 // ── PROFILE PAGE ─────────────────────────────────────────
