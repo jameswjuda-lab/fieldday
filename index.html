@@ -1555,7 +1555,7 @@ async function fetchBoxingMMA(sport) {
     let ufcEvents = [];
     if (!isBoxing) {
       try {
-        const ufcD = await cachedFetch('http://d29dxerjlnn1ob.cloudfront.net/fightcenter/events?future=true&limit=5', 120000);
+        const ufcD = await cachedFetch('', 120000);
         ufcEvents = ufcD?.data || [];
       } catch(e) {}
     }
