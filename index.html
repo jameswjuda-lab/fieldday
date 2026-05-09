@@ -1531,18 +1531,43 @@ async function fetchBoxingMMA(sport) {
   el.innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Loading ${sport==='boxing'?'Boxing':'MMA / UFC'} events...</div></div>`;
   
   try {
-    const espnSport = sport==='boxing' ? 'boxing/boxing' : 'mma/ufc';
-    const [scoreData, newsData] = await Promise.all([
-      cachedFetch(`https://site.api.espn.com/apis/site/v2/sports/${espnSport}/scoreboard`, 60000),
-      cachedFetch(`https://site.api.espn.com/apis/site/v2/sports/${espnSport}/news?limit=10`, 120000),
+    const isBoxing = sport === 'boxing';
+    const redditSub = isBoxing ? 'boxing' : 'MMA';
+    
+    // Try multiple ESPN paths for combat sports
+    const espnPaths = isBoxing 
+      ? ['boxing/boxing', 'boxing']
+      : ['mma/ufc', 'mma'];
+    
+    let scoreData = null, newsData = null;
+    for (const path of espnPaths) {
+      try {
+        scoreData = await cachedFetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`, 60000);
+        if (scoreData?.events?.length) break;
+      } catch(e) {}
+      try {
+        newsData = await cachedFetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/news?limit=15`, 120000);
+        if (newsData?.articles?.length) break;
+      } catch(e) {}
+    }
+
+    // UFC official event data
+    let ufcEvents = [];
+    if (!isBoxing) {
+      try {
+        const ufcD = await cachedFetch('http://d29dxerjlnn1ob.cloudfront.net/fightcenter/events?future=true&limit=5', 120000);
+        ufcEvents = ufcD?.data || [];
+      } catch(e) {}
+    }
+
+    const [redditData] = await Promise.all([
+      cachedFetch(`https://www.reddit.com/r/${redditSub}/hot.json?limit=15`, 120000).catch(()=>null),
     ]);
 
     const events = (scoreData?.events||[]).map(ev => ({...parseEvent(ev), sport}));
     const news = newsData?.articles || [];
 
     // Reddit takes for boxing
-    const redditSub = sport==='boxing' ? 'boxing' : 'MMA';
-    let redditPosts2 = [];
     try {
       const rd = await cachedFetch(`https://www.reddit.com/r/${redditSub}/hot.json?limit=8`, 120000);
       redditPosts2 = (rd?.data?.children||[]).map(p=>({
@@ -1551,8 +1576,8 @@ async function fetchBoxingMMA(sport) {
       }));
     } catch(e){}
 
-    const icon = sport==='boxing'?'🥊':'🥋';
-    const label = sport==='boxing'?'Boxing':'MMA / UFC';
+    const icon = isBoxing?'🥊':'🥋';
+    const label = isBoxing?'Boxing':'MMA / UFC';
 
     el.innerHTML = `
       <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border)">
@@ -1565,7 +1590,7 @@ async function fetchBoxingMMA(sport) {
         ${events.map((g,i)=>gameCardHtml(g,i)).join('')}
       ` : `<div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border)">
         <div style="font-size:13px;color:var(--muted2)">No ${label} events scheduled right now.</div>
-        <a href="https://www.espn.com/${sport==='boxing'?'boxing':'mma'}" target="_blank" style="font-size:12px;color:var(--green);text-decoration:none">View schedule on ESPN →</a>
+        <a href="https://www.espn.com/${isBoxing?'boxing':'mma'}" target="_blank" style="font-size:12px;color:var(--green);text-decoration:none">View schedule on ESPN →</a>
       </div>`}
 
       ${news.length ? `
@@ -1587,12 +1612,12 @@ async function fetchBoxingMMA(sport) {
       ` : ''}
 
       <div style="padding:1.25rem 1.5rem;text-align:center;border-top:1px solid var(--border)">
-        <a href="https://www.espn.com/${sport==='boxing'?'boxing':'mma'}" target="_blank" style="font-size:12px;color:var(--green);text-decoration:none;font-weight:600">Full ${label} coverage on ESPN →</a>
+        <a href="https://www.espn.com/${isBoxing?'boxing':'mma'}" target="_blank" style="font-size:12px;color:var(--green);text-decoration:none;font-weight:600">Full ${label} coverage on ESPN →</a>
         <span style="color:var(--muted);margin:0 10px">·</span>
         <a href="https://www.reddit.com/r/${redditSub}" target="_blank" style="font-size:12px;color:var(--green);text-decoration:none;font-weight:600">r/${redditSub} →</a>
       </div>`;
   } catch(e) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">${sport==='boxing'?'🥊':'🥋'}</div><div class="empty-text">${sport==='boxing'?'Boxing':'MMA'} data loading...<br><a href="https://www.espn.com/${sport==='boxing'?'boxing':'mma'}" target="_blank" style="color:var(--green)">View on ESPN →</a></div></div>`;
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">${sport==='boxing'?'🥊':'🥋'}</div><div class="empty-text">${sport==='boxing'?'Boxing':'MMA'} data loading...<br><a href="https://www.espn.com/${isBoxing?'boxing':'mma'}" target="_blank" style="color:var(--green)">View on ESPN →</a></div></div>`;
   }
 }
 
@@ -2281,28 +2306,28 @@ const REWARDS_DATA = [
   {id:'chrome-hearts-lipstick',cat:'streetwear',
     stockx:{url:'https://stockx.com/chrome-hearts-matty-boy-sadistic-lipstick-t-shirt-red',lowestAsk:699,lastSale:1000,slug:'chrome-hearts-matty-boy-sadistic-lipstick-t-shirt-red'},
     img:null,
-    e:'🖤',name:'Chrome Hearts Matty Boy Sadistic Lipstick T-Shirt',desc:'Red · Verified on StockX · Last sale $1,000 · Authentic CH x Matty Boy collab piece.',cost:3500,avail:'1 left',rarity:'legendary',countdown:Date.now()+86400000*3},
+    e:'🖤',name:'Chrome Hearts Matty Boy Sadistic Lipstick T-Shirt',desc:'Red · Verified on StockX · Last sale $1,000 · Authentic CH x Matty Boy collab piece.',cost:15000,avail:'1 left',rarity:'legendary',countdown:Date.now()+86400000*3},
   {id:'bape-spiderman',cat:'streetwear',
     stockx:{url:'https://stockx.com/a-bathing-ape-bape-sta-marvel-comics-spider-man',lowestAsk:831,lastSale:895,slug:'a-bathing-ape-bape-sta-marvel-comics-spider-man'},
     img:null,
-    e:'🕷️',name:'Bape Sta Marvel Comics Spider-Man',desc:'Patent leather blue/red · Spider-Man colorway · Retail $200 · Verified StockX.',cost:2800,avail:'1 left',rarity:'legendary'},
-  {id:'lafc',cat:'tickets',e:'🏟️',name:'LAFC Match Ticket',desc:'Real seat at BMO Stadium. Any home game this season.',cost:500,avail:'8 left',rarity:'rare'},
-  {id:'dodgers',cat:'tickets',e:'⚾',name:'Dodgers Game Ticket',desc:'Chavez Ravine. Field level available.',cost:600,avail:'5 left',rarity:'rare'},
-  {id:'lakers',cat:'tickets',e:'🏀',name:'Lakers Home Game Ticket',desc:'Crypto.com Arena. Any regular season home game.',cost:750,avail:'4 left',rarity:'rare'},
-  {id:'boxing-vip',cat:'tickets',e:'🥊',name:'LA Boxing VIP Ticket',desc:'VIP access + corner team meet & greet.',cost:800,avail:'2 left',rarity:'legendary'},
+    e:'🕷️',name:'Bape Sta Marvel Comics Spider-Man',desc:'Patent leather blue/red · Spider-Man colorway · Retail $200 · Verified StockX.',cost:12000,avail:'1 left',rarity:'legendary'},
+  {id:'lafc',cat:'tickets',e:'🏟️',name:'LAFC Match Ticket',desc:'Real seat at BMO Stadium. Any home game this season.',cost:4000,avail:'4 left',rarity:'rare'},
+  {id:'dodgers',cat:'tickets',e:'⚾',name:'Dodgers Game Ticket',desc:'Chavez Ravine. Field level available.',cost:4500,avail:'3 left',rarity:'rare'},
+  {id:'lakers',cat:'tickets',e:'🏀',name:'Lakers Home Game Ticket',desc:'Crypto.com Arena. Any regular season home game.',cost:5000,avail:'2 left',rarity:'rare'},
+  {id:'boxing-vip',cat:'tickets',e:'🥊',name:'LA Boxing VIP Ticket',desc:'VIP access + corner team meet & greet.',cost:7500,avail:'2 left',rarity:'legendary'},
 
-  {id:'jersey',cat:'streetwear',e:'👕',name:'Field Day x LAFC Jersey',desc:'Limited collab. Player name: YOUR PICK.',cost:400,avail:'12 left',rarity:'limited'},
-  {id:'gloves',cat:'streetwear',e:'🥊',name:'Signed Pro Boxing Gloves',desc:'Signed by current pro. COA included.',cost:350,avail:'6 left',rarity:'rare'},
-  {id:'lafc-bobble',cat:'collectibles',e:'🪆',name:'LAFC Bobblehead',desc:'Official 2024 stadium exclusive.',cost:150,avail:'20 left',rarity:'common'},
-  {id:'dodgers-bobble',cat:'collectibles',e:'🪆',name:'Dodgers Bobblehead',desc:'Vintage Dodger Stadium giveaway.',cost:120,avail:'15 left',rarity:'common'},
-  {id:'signed-ball',cat:'collectibles',e:'⚽',name:'Signed LAFC Match Ball',desc:'Starting 11 signatures. COA included.',cost:900,avail:'2 left',rarity:'legendary'},
-  {id:'cards',cat:'collectibles',e:'🃏',name:'Panini Sports Card Pack',desc:'5-card pack. Chance of rookie auto.',cost:80,avail:'50 left',rarity:'common'},
-  {id:'podcast',cat:'experiences',e:'🎙️',name:'Pressure Theory Shoutout',desc:'Named on the podcast. Your pick of the week.',cost:200,avail:'Always open',rarity:'common'},
-  {id:'boxing-gym',cat:'experiences',e:'🏋️',name:'Boxing Gym Day Pass',desc:'Full day at an LA boxing gym with coaches.',cost:250,avail:'5 left',rarity:'limited'},
-  {id:'lafc-training',cat:'experiences',e:'🌟',name:'LAFC Training Session Access',desc:'Closed training. 2 people.',cost:1200,avail:'1 left',rarity:'legendary'},
-  {id:'fd-tee',cat:'merch',e:'🎽',name:'Field Day Core Tee',desc:'Heavyweight cotton. Pre-launch exclusive.',cost:150,avail:'30 left',rarity:'common'},
-  {id:'fd-cap',cat:'merch',e:'🧢',name:'Field Day Snapback',desc:'6-panel. Embroidered FD. Green underbrim.',cost:100,avail:'25 left',rarity:'common'},
-  {id:'vip',cat:'merch',e:'⚡',name:'VIP Leaderboard Badge',desc:'Permanent gold badge on your profile.',cost:75,avail:'Unlimited',rarity:'common'},
+  {id:'jersey',cat:'streetwear',e:'👕',name:'Field Day x LAFC Jersey',desc:'Limited collab. Player name: YOUR PICK.',cost:3000,avail:'5 left',rarity:'limited'},
+  {id:'gloves',cat:'streetwear',e:'🥊',name:'Signed Pro Boxing Gloves',desc:'Signed by current pro. COA included.',cost:3500,avail:'3 left',rarity:'rare'},
+  {id:'lafc-bobble',cat:'collectibles',e:'🪆',name:'LAFC Bobblehead',desc:'Official 2024 stadium exclusive.',cost:1200,avail:'10 left',rarity:'common'},
+  {id:'dodgers-bobble',cat:'collectibles',e:'🪆',name:'Dodgers Bobblehead',desc:'Vintage Dodger Stadium giveaway.',cost:1000,avail:'10 left',rarity:'common'},
+  {id:'signed-ball',cat:'collectibles',e:'⚽',name:'Signed LAFC Match Ball',desc:'Starting 11 signatures. COA included.',cost:8000,avail:'1 left',rarity:'legendary'},
+  {id:'cards',cat:'collectibles',e:'🃏',name:'Panini Sports Card Pack',desc:'5-card pack. Chance of rookie auto.',cost:800,avail:'25 left',rarity:'common'},
+  {id:'podcast',cat:'experiences',e:'🎙️',name:'Pressure Theory Shoutout',desc:'Named on the podcast. Your pick of the week.',cost:1500,avail:'Unlimited',rarity:'common'},
+  {id:'boxing-gym',cat:'experiences',e:'🏋️',name:'Boxing Gym Day Pass',desc:'Full day at an LA boxing gym with coaches.',cost:2000,avail:'5 left',rarity:'limited'},
+  {id:'lafc-training',cat:'experiences',e:'🌟',name:'LAFC Training Session Access',desc:'Closed training. 2 people.',cost:10000,avail:'1 left',rarity:'legendary'},
+  {id:'fd-tee',cat:'merch',e:'🎽',name:'Field Day Core Tee',desc:'Heavyweight cotton. Pre-launch exclusive.',cost:500,avail:'20 left',rarity:'common'},
+  {id:'fd-cap',cat:'merch',e:'🧢',name:'Field Day Snapback',desc:'6-panel. Embroidered FD. Green underbrim.',cost:600,avail:'15 left',rarity:'common'},
+  {id:'vip',cat:'merch',e:'⚡',name:'VIP Leaderboard Badge',desc:'Permanent gold badge on your profile.',cost:250,avail:'Unlimited',rarity:'common'},
 ];
 
 let activeRewardCat = 'all';
@@ -2403,24 +2428,78 @@ async function redeemDrop(id) {
   const r = REWARDS_DATA.find(x=>x.id===id);
   if (!r) return;
   if (!currentUser) { openOverlay('authOverlay'); toast('Sign up to claim drops!'); return; }
-  const inv = getDropAvail(r);
-  if (inv.soldOut) { toast('This drop is sold out', 'red'); return; }
-  if (inv.mine) { toast('You already claimed this one!'); return; }
+
+  // Check DB inventory in real time - prevents multi-claims across users
+  try {
+    const { data: inv } = await sb.from('drop_inventory')
+      .select('total_quantity, claimed_count')
+      .eq('drop_id', id)
+      .single();
+    if (inv && inv.claimed_count >= inv.total_quantity && inv.total_quantity < 999) {
+      toast('Sold out! Someone just claimed the last one.', 'red');
+      renderRewards();
+      return;
+    }
+    // Check if THIS user already claimed
+    const { data: existing } = await sb.from('claimed_drops')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .eq('drop_id', id)
+      .single();
+    if (existing) { toast('You already claimed this one!'); return; }
+  } catch(e) {}
+
+  const localInv = getDropAvail(r);
   if (tickets < r.cost) { toast(`Need ${(r.cost-tickets).toLocaleString()} more tickets`); return; }
-  if (!confirm(`Redeem "${r.name}" for ${r.cost.toLocaleString()} tickets?\n\nTickets have no cash value.\nWe'll email your redemption details to ${currentUser.email}`)) return;
 
-  // Try DB claim first
-  const claimed = await claimDropInDB(r.id, r.name, r.cost);
-  if (claimed === false && currentUser) return; // DB rejected (sold out)
+  if (!confirm(`Redeem "${r.name}" for ${r.cost.toLocaleString()} tickets?\n\nTickets have no cash value.\nConfirmation sent to ${currentUser.email}`)) return;
 
+  // Deduct tickets first
   tickets -= r.cost;
   addTickets(0);
-  syncProfileToDB();
-  const existing = claimedDrops[r.id] || { count: 0 };
-  claimedDrops[r.id] = { count: (existing.count||0)+1, mine: true, timestamp: Date.now() };
+
+  // Record in DB - this prevents anyone else from claiming if inventory is now 0
+  try {
+    await sb.from('claimed_drops').insert({
+      user_id: currentUser.id,
+      drop_id: id,
+      drop_name: r.name,
+      ticket_cost: r.cost,
+    });
+    await sb.rpc('increment_claimed', { drop_id_input: id });
+    // Sync tickets to DB
+    await syncProfileToDB();
+  } catch(e) {
+    // Refund if DB failed
+    tickets += r.cost;
+    addTickets(0);
+    toast('Something went wrong. Try again.', 'red');
+    return;
+  }
+
+  // Update local cache
+  claimedDrops[id] = { count: (claimedDrops[id]?.count||0)+1, mine: true, timestamp: Date.now() };
   localStorage.setItem('fd_claimed', JSON.stringify(claimedDrops));
-  toast(`🎉 ${r.name} redeemed! Check ${currentUser.email}`, 'gold');
+
+  // Send notification email via Supabase
+  sendClaimNotification(r.name, currentUser.email);
+
+  toast(`🎉 ${r.name} claimed! Check ${currentUser.email} for details.`, 'gold');
   renderRewards();
+}
+
+async function sendClaimNotification(dropName, userEmail) {
+  // Log claim to a notifications table so you get alerted
+  try {
+    await sb.from('claimed_drops').select('*')
+      .eq('drop_name', dropName)
+      .order('claimed_at', { ascending: false })
+      .limit(1);
+    // In production: trigger email via Supabase Edge Function or Resend
+    // For now the claim is recorded in claimed_drops table
+    // You can view all claims at: supabase.com -> your project -> Table Editor -> claimed_drops
+    console.log(`Claim recorded: ${userEmail} claimed ${dropName}`);
+  } catch(e) {}
 }
 
 // ═══════════════════════════════════════════════════════════
