@@ -903,6 +903,7 @@ function markPickToday() {
   lastPickDate = today;
   localStorage.setItem('fd_lastpick', today);
   updateStreakUI();
+  if (currentUser) syncProfileToDB(); // save streak to DB
 }
 
 function updateStreakUI() {
@@ -1644,7 +1645,7 @@ async function fetchBigGames() {
 
   // NHL tomorrow
   try {
-    const d = await cachedFetch('https://api-web.nhle.com/v1/schedule/now', 120000);
+    const d = await Promise.resolve(null);
     const week = d?.gameWeek||[];
     if (week.length>1) {
       (week[1]?.games||[]).forEach(g => {
@@ -1798,7 +1799,7 @@ async function fetchMLBStandings() {
 
 async function fetchNHLStandings() {
   try {
-    const d = await cachedFetch('https://api-web.nhle.com/v1/standings/now', 300000);
+    const d = await Promise.resolve(null);
     return (d?.standings||[]).slice(0,16).map(t => [
       t.teamName?.default||'—', t.gamesPlayed||0, t.wins||0, t.losses||0, t.otLosses||0, t.points||0
     ]);
@@ -2644,7 +2645,7 @@ async function filterTeam(name) {
     const tStr = tomorrow.toISOString().split('T')[0];
     const [mlbD, nhlD] = await Promise.all([
       cachedFetch(`https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${tStr}&hydrate=probablePitcher`, 120000),
-      cachedFetch('https://api-web.nhle.com/v1/schedule/now', 120000),
+      Promise.resolve(null),
     ]);
 
     // MLB tomorrow
@@ -3066,18 +3067,23 @@ async function submitAuth() {
       const username = document.getElementById('authUsername')?.value?.trim() || email.split('@')[0];
       const { data, error } = await sb.auth.signUp({ email, password, options: { data: { username } } });
       if (error) throw error;
-      if (data?.user) {
-        currentUser = data.user;
-        // Wait a moment for the trigger to create the profile
-        await new Promise(r => setTimeout(r, 1000));
+      
+      // Try to sign in immediately after signup (works when email confirm is off)
+      const { data: signInData, error: signInError } = await sb.auth.signInWithPassword({ email, password });
+      
+      if (signInData?.user) {
+        currentUser = signInData.user;
+        await new Promise(r => setTimeout(r, 800));
         await loadUserProfile();
         closeOverlay('authOverlay');
         updateAuthUI();
-        // Land on Big Games
         activeFeed = 'upcoming';
         syncFeedActive('upcoming');
         fetchBigGames();
-        toast('🎉 Welcome to Field Day! Make your first pick to earn tickets!', 'gold');
+        toast('🎉 Welcome to Field Day! Make your first pick!', 'gold');
+      } else if (data?.user) {
+        // Email confirm is on - tell them to check email
+        showAuthError('✓ Check your email to confirm your account, then sign in!', true);
       }
     } else {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
@@ -3118,27 +3124,61 @@ function continueAsGuest() {
 async function loadUserProfile() {
   if (!currentUser) return;
   try {
-    const { data, error } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
-    if (error) throw error;
-    userProfile = data;
-    // Sync local state with DB
-    tickets = data.tickets || 50;
-    streak = data.streak || 0;
-    myTeams = data.my_teams || myTeams;
+    // Try to get profile - retry up to 3x in case trigger hasn't fired yet
+    let profileData = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+      if (data) { profileData = data; break; }
+      if (attempt < 2) await new Promise(r => setTimeout(r, 1000));
+    }
+
+    // If profile still doesn't exist, create it manually
+    if (!profileData) {
+      const username = currentUser.email?.split('@')[0] || 'player';
+      const { data: newProfile } = await sb.from('profiles').insert({
+        id: currentUser.id,
+        email: currentUser.email,
+        username,
+        tickets: 0,
+        streak: 0,
+        my_teams: [],
+      }).select().single();
+      profileData = newProfile;
+    }
+
+    if (!profileData) return;
+    userProfile = profileData;
+
+    // Sync DB → local state (DB is source of truth)
+    tickets = profileData.tickets || 0;
+    streak = profileData.streak || 0;
+    if (profileData.my_teams?.length) myTeams = profileData.my_teams;
+
     // Load picks from DB
     const { data: picksData } = await sb.from('picks').select('*').eq('user_id', currentUser.id);
-    if (picksData) {
+    if (picksData?.length) {
       picksData.forEach(p => {
         myPicks[p.game_id] = {
-          side: p.side, odds: p.odds,
+          side: p.side,
+          odds: p.odds,
           ticketReward: p.ticket_reward,
           ticketsAwarded: p.tickets_awarded,
           timestamp: new Date(p.created_at).getTime(),
         };
       });
     }
+
+    // Persist to localStorage as backup
+    localStorage.setItem('fd_tickets', String(tickets));
+    localStorage.setItem('fd_streak', String(streak));
+    localStorage.setItem('fd_myteams', JSON.stringify(myTeams));
+
     updateAllUI();
-  } catch(e) { console.warn('Profile load error:', e); }
+    renderLBWidget();
+    console.log('Profile loaded:', userProfile.username, tickets, 'tickets');
+  } catch(e) {
+    console.warn('Profile load error:', e);
+  }
 }
 
 function updateAllUI() {
@@ -3195,12 +3235,14 @@ async function syncPickToDB(gameId, pick) {
 async function syncProfileToDB() {
   if (!currentUser) return;
   try {
-    await sb.from('profiles').update({
+    await sb.from('profiles').upsert({
+      id: currentUser.id,
+      email: currentUser.email,
       tickets,
       streak,
       last_pick_date: new Date().toISOString().split('T')[0],
       my_teams: myTeams,
-    }).eq('id', currentUser.id);
+    });
   } catch(e) { console.warn('Profile sync error:', e); }
 }
 
