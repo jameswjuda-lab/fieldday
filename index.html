@@ -1528,11 +1528,11 @@ const BIG_MARKETS = ['lakers','celtics','warriors','bulls','knicks','yankees','d
 // Boxing & MMA — ESPN covers this
 async function fetchBoxingMMA(sport) {
   const el = document.getElementById('feedContent');
-  el.innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Loading ${sport==='boxing'?'Boxing':'MMA / UFC'} events...</div></div>`;
+  const isBoxing = sport === 'boxing';
+  const redditSub = isBoxing ? 'boxing' : 'MMA';
+  el.innerHTML = `<div class="loading-state"><div class="spinner"></div><div class="loading-text">Loading ${isBoxing?'Boxing':'MMA / UFC'} events...</div></div>`;
   
   try {
-    const isBoxing = sport === 'boxing';
-    const redditSub = isBoxing ? 'boxing' : 'MMA';
     
     // Try multiple ESPN paths for combat sports
     const espnPaths = isBoxing 
