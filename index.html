@@ -1488,9 +1488,24 @@ function teamLogoHtml(team) {
 // ═══════════════════════════════════════════════════════════
 // PICKS SYSTEM
 // ═══════════════════════════════════════════════════════════
-function doPick(gameId, side, el) {
+async function doPick(gameId, side, el) {
   if (myPicks[gameId]) { toast('Already picked this game'); return; }
-  if (picksUsedToday >= MAX_DAILY_PICKS) { toast('Daily limit reached · Resets at midnight', 'red'); return; }
+  if (picksUsedToday >= MAX_DAILY_PICKS) { toast(`Daily limit reached (${MAX_DAILY_PICKS}/${MAX_DAILY_PICKS}) · Resets at midnight`, 'red'); return; }
+  
+  // Double-check against DB if logged in
+  if (currentUser) {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: todayPicks } = await sb.from('picks')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .gte('created_at', today + 'T00:00:00.000Z');
+    if (todayPicks && todayPicks.length >= MAX_DAILY_PICKS) {
+      picksUsedToday = todayPicks.length;
+      updatePicksUI();
+      toast(`Daily limit reached (${MAX_DAILY_PICKS}/${MAX_DAILY_PICKS}) · Resets at midnight`, 'red');
+      return;
+    }
+  }
 
   const game = allGames.find(g => g.id===gameId) || extraGamesCache.find(g => g.id===gameId);
   if (!game) return;
@@ -3257,9 +3272,19 @@ async function loadUserProfile() {
     localStorage.setItem('fd_streak', String(streak));
     localStorage.setItem('fd_myteams', JSON.stringify(myTeams));
 
+    // Count today's picks from DB to enforce limit correctly
+    const today = new Date().toISOString().split('T')[0];
+    const { data: todayPicks } = await sb.from('picks')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .gte('created_at', today + 'T00:00:00.000Z');
+    if (todayPicks) {
+      picksUsedToday = todayPicks.length;
+      updatePicksUI();
+    }
+
     updateAllUI();
     renderLBWidget();
-    console.log('Profile loaded:', userProfile.username, tickets, 'tickets');
   } catch(e) {
     console.warn('Profile load error:', e);
   }
