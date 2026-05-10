@@ -3085,49 +3085,44 @@ async function submitAuth() {
   btn.textContent = 'Loading...';
   btn.disabled = true;
 
-  // Safari fix: ensure Supabase uses correct storage
-  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
   try {
+    let user = null;
+
     if (authMode === 'signup') {
       const username = document.getElementById('authUsername')?.value?.trim() || email.split('@')[0];
       const { data, error } = await sb.auth.signUp({ email, password, options: { data: { username } } });
       if (error) throw error;
-      
-      // Try to sign in immediately after signup (works when email confirm is off)
-      const { data: signInData, error: signInError } = await sb.auth.signInWithPassword({ email, password });
-      
-      if (signInData?.user) {
-        currentUser = signInData.user;
-        await new Promise(r => setTimeout(r, 800));
-        await loadUserProfile();
-        closeOverlay('authOverlay');
-        updateAuthUI();
-        activeFeed = 'upcoming';
-        syncFeedActive('upcoming');
-        fetchBigGames();
-        toast('🎉 Welcome to Field Day! Make your first pick!', 'gold');
-      } else if (data?.user) {
-        // Email confirm is on - tell them to check email
-        showAuthError('✓ Check your email to confirm your account, then sign in!', true);
-      }
+      // Sign in immediately
+      const { data: d2, error: e2 } = await sb.auth.signInWithPassword({ email, password });
+      if (e2) throw e2;
+      user = d2?.user;
     } else {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      currentUser = data.user;
-      await loadUserProfile();
+      user = data?.user;
+    }
+
+    if (user) {
+      currentUser = user;
+      // Load profile with short timeout
+      await Promise.race([
+        loadUserProfile(),
+        new Promise(r => setTimeout(r, 3000)) // 3s max wait
+      ]);
       closeOverlay('authOverlay');
       updateAuthUI();
       activeFeed = 'upcoming';
       syncFeedActive('upcoming');
       fetchBigGames();
-      toast('Welcome back! 🔥 ' + streak + '-day streak', 'gold');
+      const msg = authMode === 'signup' ? '🎉 Welcome to Field Day!' : '🔥 Welcome back!';
+      toast(msg, 'gold');
     }
   } catch(e) {
-    showAuthError(e.message || 'Something went wrong');
+    showAuthError(e.message === 'Invalid login credentials' ? 'Wrong email or password' : e.message || 'Something went wrong');
+  } finally {
+    btn.textContent = authMode === 'signup' ? 'Create Account →' : 'Sign In →';
+    btn.disabled = false;
   }
-  btn.textContent = authMode === 'signup' ? 'Create Account →' : 'Sign In →';
-  btn.disabled = false;
 }
 
 function showAuthError(msg, isSuccess=false) {
