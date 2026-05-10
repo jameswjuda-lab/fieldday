@@ -2580,14 +2580,25 @@ function copyCard() {
 // ═══════════════════════════════════════════════════════════
 function addTickets(n) {
   tickets += n;
-  localStorage.setItem('fd_tickets', tickets);
-  ['navTickets','ticketBig','rewardBalance'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=tickets.toLocaleString();});
-  const pct = Math.min((tickets%500)/500*100,100);
+  if (tickets < 0) tickets = 0;
+  localStorage.setItem('fd_tickets', String(tickets));
+  ['navTickets','ticketBig','rewardBalance'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = tickets.toLocaleString();
+  });
+  const pct = Math.min((tickets % 500) / 500 * 100, 100);
   const fill = document.getElementById('ticketFill');
-  if (fill) fill.style.width = pct+'%';
+  if (fill) fill.style.width = pct + '%';
   const sub = document.getElementById('ticketSub');
-  const next = Math.ceil(tickets/500)*500;
-  if (sub) sub.textContent = `${(next-tickets).toLocaleString()} more for LAFC match ticket`;
+  const next = Math.ceil((tickets + 1) / 500) * 500;
+  if (sub) sub.textContent = `${(next - tickets).toLocaleString()} more for LAFC match ticket`;
+  // Debounce sync to DB
+  if (currentUser) {
+    clearTimeout(window._syncTimer);
+    window._syncTimer = setTimeout(async () => {
+      await sb.from('profiles').update({ tickets }).eq('id', currentUser.id);
+    }, 1500);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3246,14 +3257,15 @@ async function syncPickToDB(gameId, pick) {
 async function syncProfileToDB() {
   if (!currentUser) return;
   try {
-    await sb.from('profiles').upsert({
-      id: currentUser.id,
-      email: currentUser.email,
-      tickets,
-      streak,
-      last_pick_date: new Date().toISOString().split('T')[0],
-      my_teams: myTeams,
-    });
+    const { error } = await sb.from('profiles')
+      .update({
+        tickets,
+        streak,
+        last_pick_date: new Date().toISOString().split('T')[0],
+        my_teams: myTeams,
+      })
+      .eq('id', currentUser.id);
+    if (error) console.warn('Sync error:', error);
   } catch(e) { console.warn('Profile sync error:', e); }
 }
 
