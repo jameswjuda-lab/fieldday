@@ -860,7 +860,15 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
 // ═══════════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://vpxctngxfkvuqwezmppe.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZweGN0bmd4Zmt2dXF3ZXptcHBlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNDkzOTYsImV4cCI6MjA5MzkyNTM5Nn0.RigqrkSIyEy39SanPhWlyoqeprkMBx3yGE4ij5TlKZQ';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    storage: window.localStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'implicit',
+  }
+});
 
 let currentUser = null; // logged in user
 let userProfile = null; // profile from DB
@@ -3061,6 +3069,9 @@ async function submitAuth() {
 
   btn.textContent = 'Loading...';
   btn.disabled = true;
+
+  // Safari fix: ensure Supabase uses correct storage
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
   try {
     if (authMode === 'signup') {
