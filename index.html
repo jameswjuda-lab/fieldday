@@ -858,10 +858,9 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
       <div style="font-size:11px;color:var(--muted2);margin-bottom:6px">Free at <a href="https://newsapi.org/register" target="_blank" style="color:var(--green)">newsapi.org</a></div>
       <input id="key-news" placeholder="Paste NewsAPI key..." value="" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:var(--r);font-family:var(--font-body);font-size:13px;outline:none;" />
     </div>
-    <div style="margin-bottom:1.5rem">
-      <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--green);margin-bottom:6px">📊 The Odds API — Live Lines</div>
-      <div style="font-size:11px;color:var(--muted2);margin-bottom:6px">500 free requests/month at <a href="https://the-odds-api.com" target="_blank" style="color:var(--green)">the-odds-api.com</a></div>
-      <input id="key-odds" placeholder="Paste Odds API key..." value="" style="width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:var(--r);font-family:var(--font-body);font-size:13px;outline:none;" />
+    <div style="margin-bottom:1.5rem;background:var(--green-glow);border:1px solid rgba(92,184,92,0.2);border-radius:var(--r);padding:10px 12px">
+      <div style="font-size:11px;color:var(--green);font-weight:600">✓ Live odds — enabled</div>
+      <div style="font-size:11px;color:var(--muted2);margin-top:2px">Real moneylines from DraftKings & FanDuel</div>
     </div>
     <div style="display:flex;gap:10px">
       <button onclick="saveApiKeys()" class="btn-join" style="flex:1;padding:10px;font-size:11px">Save Keys</button>
@@ -1292,8 +1291,76 @@ function updatePips() {
 // ═══════════════════════════════════════════════════════════
 // ODDS CALCULATION FOR PICKS (odds-influenced ticket rewards)
 // ═══════════════════════════════════════════════════════════
+// ── REAL ODDS (The Odds API — hardcoded, invisible to users) ──
+const ODDS_API_KEY = '619ab3f5794f905b802ae35b955b5c17';
+const oddsCache = {}; // { 'TeamA-TeamB': { homeML, awayML, overUnder } }
+
+async function fetchRealOdds() {
+  const sportMap = {
+    nba: 'basketball_nba',
+    nfl: 'americanfootball_nfl', 
+    mlb: 'baseball_mlb',
+    nhl: 'icehockey_nhl',
+    soccer: 'soccer_usa_mls'
+  };
+  const sports = Object.values(sportMap);
+  await Promise.all(sports.map(async (sport) => {
+    try {
+      const r = await fetch(`https://api.the-odds-api.com/v4/sports/${sport}/odds/?regions=us&markets=h2h,totals&oddsFormat=american&apiKey=${ODDS_API_KEY}`);
+      if (!r.ok) return;
+      const data = await r.json();
+      (data || []).forEach(game => {
+        const key = `${game.home_team}-${game.away_team}`.toLowerCase();
+        const bm = game.bookmakers?.[0];
+        if (!bm) return;
+        const h2h = bm.markets?.find(m => m.key === 'h2h');
+        const totals = bm.markets?.find(m => m.key === 'totals');
+        if (h2h) {
+          const home = h2h.outcomes?.find(o => o.name === game.home_team);
+          const away = h2h.outcomes?.find(o => o.name === game.away_team);
+          oddsCache[key] = {
+            homeML: home?.price || null,
+            awayML: away?.price || null,
+            overUnder: totals?.outcomes?.[0]?.point || null,
+          };
+        }
+      });
+    } catch(e) {}
+  }));
+}
+
+function getGameOdds(game) {
+  const key = `${game.home.name}-${game.away.name}`.toLowerCase();
+  // Try exact match first
+  if (oddsCache[key]) return oddsCache[key];
+  // Try partial match
+  for (const [k, v] of Object.entries(oddsCache)) {
+    if (k.includes(game.home.name.toLowerCase().split(' ').pop()) &&
+        k.includes(game.away.name.toLowerCase().split(' ').pop())) {
+      return v;
+    }
+  }
+  return null;
+}
+
 function getOddsContext(game, side) {
-  // Use real ESPN odds if available
+  // Try real odds from The Odds API first
+  const realOdds = getGameOdds(game);
+  if (realOdds?.homeML && realOdds?.awayML) {
+    const ml = side === 'home' ? realOdds.homeML : realOdds.awayML;
+    const isUnderdog = ml > 0;
+    let ticketReward = 15;
+    if (ml >= 300) ticketReward = 50;
+    else if (ml >= 200) ticketReward = 35;
+    else if (ml >= 100) ticketReward = 25;
+    else if (ml <= -300) ticketReward = 8;
+    else if (ml <= -200) ticketReward = 10;
+    else ticketReward = 15;
+    const multiplier = streak >= 30 ? 5 : streak >= 14 ? 3 : streak >= 7 ? 2 : 1;
+    return { ml, isUnderdog, ticketReward: Math.round(ticketReward * multiplier), multiplier, real: true };
+  }
+
+  // Fallback: ESPN odds from parseEvent
   if (game.homeML && game.awayML) {
     const ml = side === 'home' ? game.homeML : game.awayML;
     const mlNum = parseInt(String(ml).replace('+','')) * (String(ml).startsWith('-') ? -1 : 1);
@@ -1309,7 +1376,7 @@ function getOddsContext(game, side) {
     return { ml: mlNum, isUnderdog, ticketReward: Math.round(ticketReward * multiplier), multiplier };
   }
 
-  // Fallback: calculate from win/loss records
+  // Final fallback: calculate from win/loss records
   const homeRec = game.home?.rec || '0-0';
   const awayRec = game.away?.rec || '0-0';
   const homeParts = homeRec.replace(/[^0-9-]/g,'').split('-').map(Number).filter(n=>!isNaN(n));
@@ -1408,12 +1475,12 @@ function gameCardHtml(g, i) {
     const awayStr = awayCtx.ml > 0 ? `+${awayCtx.ml}` : `${awayCtx.ml}`;
     const homeStr = homeCtx.ml > 0 ? `+${homeCtx.ml}` : `${homeCtx.ml}`;
     const ouDisplay = g.overUnder ? g.overUnder : (Math.random()*40+180).toFixed(0);
-    const hasRealOdds = !!(g.homeML && g.awayML);
+    const hasRealOdds = awayCtx.real || homeCtx.real || !!(g.homeML && g.awayML);
     oddsHtml = `<div class="odds-row">
       <span class="odds-chip ${awayCtx.isUnderdog?'underdog':''}">${esc(g.away.short)} ${awayStr}</span>
       <span class="odds-chip total">O/U ${ouDisplay}</span>
       <span class="odds-chip ${homeCtx.isUnderdog?'underdog':''}">${esc(g.home.short)} ${homeStr}</span>
-      ${!hasRealOdds ? '<span style="font-size:10px;color:var(--muted);font-style:italic">Estimated · for context only</span>' : ''}
+      ${!hasRealOdds ? '<span style="font-size:10px;color:var(--muted);font-style:italic">Estimated · for context only</span>' : '<span style="font-size:10px;color:var(--green);font-style:italic">Live lines</span>'}
     </div>`;
   }
 
@@ -3502,7 +3569,13 @@ async function fetchAllAndSync(isAutoRefresh) {
   }
 }
 fetchAllAndSync(false);
-setInterval(() => fetchAllAndSync(true), 30000); // 30s auto-refresh, score tabs only
+setInterval(() => fetchAllAndSync(true), 30000); // 30s auto-refresh
+
+// Fetch real odds in background - refresh every 5 minutes
+fetchRealOdds().then(() => renderFeed());
+setInterval(() => fetchRealOdds().then(() => {
+  if (activeFeed === 'all' || activeFeed === 'upcoming' || activeFeed === 'live') renderFeed();
+}), 300000);
 
 // Daily login bonus
 setTimeout(()=>toast('🔥 Daily login +5 🎟','gold'), 1500);
