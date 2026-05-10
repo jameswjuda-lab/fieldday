@@ -439,6 +439,15 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
   🎟️ FREE TO PLAY · NO PURCHASE NECESSARY · <span>Not a gambling platform · Tickets have no cash value</span>
 </div>
 
+<!-- AUTH GATE — blocks content until signed in -->
+<div id="authGate" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:499;flex-direction:column;align-items:center;justify-content:center;padding:2rem;text-align:center">
+  <div style="font-family:var(--font-display);font-size:48px;letter-spacing:4px;margin-bottom:8px"><span style="color:#fff">field</span><span style="color:var(--green)">day</span></div>
+  <div style="font-size:13px;color:var(--muted2);margin-bottom:2rem">Play. Connect. Elevate.</div>
+  <button onclick="openOverlay('authOverlay')" class="btn-join" style="padding:14px 32px;font-size:13px;margin-bottom:12px">Sign Up Free →</button>
+  <div style="font-size:12px;color:var(--muted)">Already have an account? <span style="color:var(--green);cursor:pointer" onclick="switchAuthTab('login');openOverlay('authOverlay')">Sign In →</span></div>
+  <div style="font-size:10px;color:var(--muted);margin-top:1rem">Free to play · No purchase necessary · Not gambling</div>
+</div>
+
 <!-- AUTH MODAL -->
 <div class="overlay" id="authOverlay" style="z-index:700">
   <div style="background:var(--surface);border:1px solid var(--border2);border-radius:var(--r-xl);max-width:400px;width:92%;padding:2rem;position:relative">
@@ -907,6 +916,9 @@ function initSupabase() {
       currentUser = session.user;
       await loadUserProfile();
       localStorage.setItem('fd_onboarded', '1');
+      // Hide gate immediately
+      const gate = document.getElementById('authGate');
+      if (gate) gate.style.display = 'none';
     }
   });
   sb.auth.onAuthStateChange(async (event, session) => {
@@ -933,7 +945,7 @@ let extraGamesCache = []; // tomorrow's games from MLB/NHL APIs
 let activeSport = 'all';
 let activeFeed = 'all';
 let tickets = parseInt(localStorage.getItem('fd_tickets')||'0');
-let streak = parseInt(localStorage.getItem('fd_streak')||'0');
+let streak = 0; // always load from DB when logged in
 let lastPickDate = localStorage.getItem('fd_lastpick')||'';
 
 function checkStreak() {
@@ -3301,16 +3313,25 @@ function updateAllUI() {
 
 function updateAuthUI() {
   const joinBtn = document.getElementById('joinBtn');
-  if (!joinBtn) return;
+  const gate = document.getElementById('authGate');
+
   if (currentUser && userProfile) {
+    // Hide auth gate — user is in
+    if (gate) gate.style.display = 'none';
     const initial = (userProfile.username || currentUser.email || 'U')[0].toUpperCase();
-    joinBtn.textContent = initial;
-    joinBtn.style.cssText = 'width:32px;height:32px;border-radius:50%;background:var(--green);border:none;color:#fff;font-family:var(--font-display);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;';
-    joinBtn.onclick = () => showView('profile');
+    if (joinBtn) {
+      joinBtn.textContent = initial;
+      joinBtn.style.cssText = 'width:32px;height:32px;border-radius:50%;background:var(--green);border:none;color:#fff;font-family:var(--font-display);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;';
+      joinBtn.onclick = () => showView('profile');
+    }
   } else {
-    joinBtn.textContent = 'Join Free';
-    joinBtn.style.cssText = '';
-    joinBtn.onclick = () => openOverlay('authOverlay');
+    // Show auth gate
+    if (gate) gate.style.display = 'flex';
+    if (joinBtn) {
+      joinBtn.textContent = 'Join Free';
+      joinBtn.style.cssText = '';
+      joinBtn.onclick = () => openOverlay('authOverlay');
+    }
   }
 }
 
@@ -3408,12 +3429,13 @@ async function loadLeaderboard() {
 
 // Session restored in initSupabase() above
 
-// Show auth for new users
+// Show auth gate for all non-logged-in users
 setTimeout(() => {
-  if (!currentUser && !localStorage.getItem('fd_onboarded') && !localStorage.getItem('fd_guest')) {
-    setTimeout(() => openOverlay('authOverlay'), 800);
+  if (!currentUser) {
+    const gate = document.getElementById('authGate');
+    if (gate) gate.style.display = 'flex';
   }
-}, 1200);
+}, 1500);
 
 // Load saved API keys
 const keyNewsEl = document.getElementById('key-news');
