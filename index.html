@@ -5,7 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>field day — Play. Connect. Elevate.</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+// Load Supabase with fallback CDNs
+(function() {
+  function loadScript(src, cb) {
+    var s = document.createElement('script');
+    s.src = src;
+    s.onload = cb;
+    s.onerror = function() {
+      // Try fallback
+      var s2 = document.createElement('script');
+      s2.src = 'https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js';
+      s2.onload = cb;
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s);
+  }
+  loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js', function() {
+    window._supabaseReady = true;
+  });
+})();
+</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 :root{
@@ -861,7 +881,14 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
 const SUPABASE_URL = 'https://vpxctngxfkvuqwezmppe.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZweGN0bmd4Zmt2dXF3ZXptcHBlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNDkzOTYsImV4cCI6MjA5MzkyNTM5Nn0.RigqrkSIyEy39SanPhWlyoqeprkMBx3yGE4ij5TlKZQ';
 // Wait for Supabase SDK to be available
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+// Wait for Supabase SDK to be ready
+let sb;
+function initSupabase() {
+  if (!window.supabase) {
+    setTimeout(initSupabase, 100);
+    return;
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     storage: window.localStorage,
     storageKey: 'fieldday-auth',
@@ -873,7 +900,27 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   global: {
     headers: { apikey: SUPABASE_KEY },
   }
-});
+  });
+  // Now that sb is ready, restore session
+  sb.auth.getSession().then(async ({ data: { session } }) => {
+    if (session) {
+      currentUser = session.user;
+      await loadUserProfile();
+      localStorage.setItem('fd_onboarded', '1');
+    }
+  });
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      currentUser = session.user;
+      await loadUserProfile();
+      updateAuthUI();
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null; userProfile = null;
+      updateAuthUI();
+    }
+  });
+}
+initSupabase();
 
 let currentUser = null; // logged in user
 let userProfile = null; // profile from DB
@@ -3317,34 +3364,14 @@ async function loadLeaderboard() {
   }
 }
 
-// ── CHECK SUPABASE SESSION ON LOAD ─────────────────────────
-sb.auth.getSession().then(async ({ data: { session } }) => {
-  if (session) {
-    currentUser = session.user;
-    await loadUserProfile();
-    // Returning logged-in user - skip onboarding
-    localStorage.setItem('fd_onboarded', '1');
-  } else {
-    // Not logged in - show auth for new users, skip for guests
-    const hasOnboarded = localStorage.getItem('fd_onboarded');
-    const isGuest = localStorage.getItem('fd_guest');
-    if (!hasOnboarded && !isGuest) {
-      setTimeout(() => openOverlay('authOverlay'), 800);
-    }
-  }
-});
+// Session restored in initSupabase() above
 
-// Listen for auth changes
-sb.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session) {
-    currentUser = session.user;
-    await loadUserProfile();
-    updateAuthUI();
-  } else if (event === 'SIGNED_OUT') {
-    currentUser = null; userProfile = null;
-    updateAuthUI();
+// Show auth for new users
+setTimeout(() => {
+  if (!currentUser && !localStorage.getItem('fd_onboarded') && !localStorage.getItem('fd_guest')) {
+    setTimeout(() => openOverlay('authOverlay'), 800);
   }
-});
+}, 1200);
 
 // Load saved API keys
 const keyNewsEl = document.getElementById('key-news');
