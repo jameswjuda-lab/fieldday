@@ -864,6 +864,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
     storage: window.localStorage,
+    storageKey: 'fieldday-auth',
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
@@ -2596,12 +2597,10 @@ function addTickets(n) {
   const sub = document.getElementById('ticketSub');
   const next = Math.ceil((tickets + 1) / 500) * 500;
   if (sub) sub.textContent = `${(next - tickets).toLocaleString()} more for LAFC match ticket`;
-  // Debounce sync to DB
-  if (currentUser) {
-    clearTimeout(window._syncTimer);
-    window._syncTimer = setTimeout(async () => {
-      await sb.from('profiles').update({ tickets }).eq('id', currentUser.id);
-    }, 1500);
+  // Save to DB immediately when tickets change
+  if (currentUser && n !== 0) {
+    sb.from('profiles').update({ tickets }).eq('id', currentUser.id)
+      .then(() => {}).catch(e => console.warn('ticket sync:', e));
   }
 }
 
