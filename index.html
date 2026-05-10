@@ -1235,8 +1235,25 @@ function parseEvent(ev) {
   const home = c.competitors.find(x => x.homeAway==='home') || c.competitors[0];
   const away = c.competitors.find(x => x.homeAway==='away') || c.competitors[1];
   const hs = parseInt(home.score)||0, as = parseInt(away.score)||0;
-  // Broadcast
   const broadcast = c.broadcasts?.[0]?.names?.[0] || null;
+
+  // Extract real odds from ESPN if available
+  const oddsData = c.odds?.[0] || null;
+  let homeML = null, awayML = null, overUnder = null;
+  if (oddsData) {
+    // ESPN provides homeTeamOdds and awayTeamOdds
+    homeML = oddsData.homeTeamOdds?.moneyLine || oddsData.homeTeamOdds?.current?.moneyLine || null;
+    awayML = oddsData.awayTeamOdds?.moneyLine || oddsData.awayTeamOdds?.current?.moneyLine || null;
+    overUnder = oddsData.overUnder || oddsData.total || null;
+    // Sometimes ESPN gives spread as main line - use favorite/underdog
+    if (!homeML && oddsData.favorite) {
+      const favML = oddsData.moneyLine || -110;
+      const dogML = Math.round(100 * 100 / Math.abs(favML));
+      if (oddsData.favorite === 'home') { homeML = favML; awayML = '+' + dogML; }
+      else { awayML = favML; homeML = '+' + dogML; }
+    }
+  }
+
   return {
     id: ev.id, date: ev.date,
     isLive: st.type.state==='in',
@@ -1250,6 +1267,7 @@ function parseEvent(ev) {
     headline: c.headlines?.[0]?.description || null,
     broadcast,
     venue: c.venue?.fullName || null,
+    homeML, awayML, overUnder,
   };
 }
 
@@ -1275,6 +1293,23 @@ function updatePips() {
 // ODDS CALCULATION FOR PICKS (odds-influenced ticket rewards)
 // ═══════════════════════════════════════════════════════════
 function getOddsContext(game, side) {
+  // Use real ESPN odds if available
+  if (game.homeML && game.awayML) {
+    const ml = side === 'home' ? game.homeML : game.awayML;
+    const mlNum = parseInt(String(ml).replace('+','')) * (String(ml).startsWith('-') ? -1 : 1);
+    const isUnderdog = mlNum > 0;
+    let ticketReward = 15;
+    if (mlNum >= 300) ticketReward = 50;
+    else if (mlNum >= 200) ticketReward = 35;
+    else if (mlNum >= 100) ticketReward = 25;
+    else if (mlNum <= -300) ticketReward = 8;
+    else if (mlNum <= -200) ticketReward = 10;
+    else ticketReward = 15;
+    const multiplier = streak >= 30 ? 5 : streak >= 14 ? 3 : streak >= 7 ? 2 : 1;
+    return { ml: mlNum, isUnderdog, ticketReward: Math.round(ticketReward * multiplier), multiplier };
+  }
+
+  // Fallback: calculate from win/loss records
   const homeRec = game.home?.rec || '0-0';
   const awayRec = game.away?.rec || '0-0';
   const homeParts = homeRec.replace(/[^0-9-]/g,'').split('-').map(Number).filter(n=>!isNaN(n));
@@ -1372,11 +1407,13 @@ function gameCardHtml(g, i) {
     const homeCtx = getOddsContext(g, 'home');
     const awayStr = awayCtx.ml > 0 ? `+${awayCtx.ml}` : `${awayCtx.ml}`;
     const homeStr = homeCtx.ml > 0 ? `+${homeCtx.ml}` : `${homeCtx.ml}`;
+    const ouDisplay = g.overUnder ? g.overUnder : (Math.random()*40+180).toFixed(0);
+    const hasRealOdds = !!(g.homeML && g.awayML);
     oddsHtml = `<div class="odds-row">
       <span class="odds-chip ${awayCtx.isUnderdog?'underdog':''}">${esc(g.away.short)} ${awayStr}</span>
-      <span class="odds-chip total">O/U ~${(Math.random()*40+180).toFixed(0)}</span>
+      <span class="odds-chip total">O/U ${ouDisplay}</span>
       <span class="odds-chip ${homeCtx.isUnderdog?'underdog':''}">${esc(g.home.short)} ${homeStr}</span>
-      <span style="font-size:10px;color:var(--muted);font-style:italic">Estimated · for context only</span>
+      ${!hasRealOdds ? '<span style="font-size:10px;color:var(--muted);font-style:italic">Estimated · for context only</span>' : ''}
     </div>`;
   }
 
