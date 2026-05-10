@@ -1493,11 +1493,12 @@ async function doPick(gameId, side, el) {
   
   // Double-check against DB if logged in
   if (currentUser) {
-    const today = new Date().toISOString().split('T')[0];
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0,0,0,0);
     const { data: todayPicks } = await sb.from('picks')
       .select('id')
       .eq('user_id', currentUser.id)
-      .gte('created_at', today + 'T00:00:00.000Z');
+      .gte('created_at', todayMidnight.toISOString());
     if (todayPicks && todayPicks.length >= MAX_DAILY_PICKS) {
       picksUsedToday = todayPicks.length;
       updatePicksUI();
@@ -3271,14 +3272,16 @@ async function loadUserProfile() {
     localStorage.setItem('fd_streak', String(streak));
     localStorage.setItem('fd_myteams', JSON.stringify(myTeams));
 
-    // Count today's picks from DB to enforce limit correctly
-    const today = new Date().toISOString().split('T')[0];
+    // Count only TODAY's picks from DB
+    const todayStart = new Date();
+    todayStart.setHours(0,0,0,0);
     const { data: todayPicks } = await sb.from('picks')
       .select('id')
       .eq('user_id', currentUser.id)
-      .gte('created_at', today + 'T00:00:00.000Z');
+      .gte('created_at', todayStart.toISOString());
     if (todayPicks) {
       picksUsedToday = todayPicks.length;
+      localStorage.setItem('fd_pickreset', new Date().toDateString());
       updatePicksUI();
     }
 
@@ -3491,6 +3494,14 @@ const todayDate = new Date().toDateString();
 if (lastReset !== todayDate) {
   picksUsedToday = 0;
   localStorage.setItem('fd_pickreset', todayDate);
+  localStorage.setItem('fd_picks', JSON.stringify(
+    Object.fromEntries(
+      Object.entries(myPicks).filter(([,v]) => {
+        const pickDate = new Date(v.timestamp||0).toDateString();
+        return pickDate === todayDate || v.ticketsAwarded === false;
+      })
+    )
+  ));
   updatePicksUI();
 }
 
