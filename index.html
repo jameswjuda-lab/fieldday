@@ -3128,6 +3128,23 @@ async function submitAuth() {
   if (!email || !password) { showAuthError('Please enter email and password'); return; }
   if (password.length < 6) { showAuthError('Password must be at least 6 characters'); return; }
 
+  // Wait for Supabase to be ready (max 5 seconds)
+  if (!sb) {
+    btn.textContent = 'Connecting...';
+    btn.disabled = true;
+    let waited = 0;
+    while (!sb && waited < 5000) {
+      await new Promise(r => setTimeout(r, 200));
+      waited += 200;
+    }
+    if (!sb) {
+      showAuthError('Connection failed. Please refresh the page and try again.');
+      btn.textContent = authMode === 'signup' ? 'Create Account →' : 'Sign In →';
+      btn.disabled = false;
+      return;
+    }
+  }
+
   btn.textContent = 'Loading...';
   btn.disabled = true;
 
