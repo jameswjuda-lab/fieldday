@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>field day — Play. Connect. Elevate.</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -410,30 +410,106 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
 
 /* ── MOBILE LAYOUT ──────────────────────────────────────── */
 @media (max-width: 768px) {
+  /* Hide sidebars */
   .sidebar-left, .sidebar-right { display: none !important; }
-  .app-grid { grid-template-columns: 1fr !important; }
-  .main-content { padding: 0 !important; min-width: 0 !important; border: none !important; }
+  
+  /* Core layout */
+  .app-grid { grid-template-columns: 1fr !important; width: 100vw !important; overflow-x: hidden !important; }
+  .main-content { padding: 0 !important; min-width: 0 !important; width: 100% !important; overflow-x: hidden !important; border: none !important; }
+  body { overflow-x: hidden !important; }
+  
+  /* Compliance bar - single line */
+  .compliance-bar { font-size: 9px !important; padding: 3px 8px !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  
+  /* Nav */
   .top-nav { padding: 0 10px !important; height: 50px !important; }
   .nav-center { display: none !important; }
   .logo-tagline { display: none !important; }
-  .sport-tabs, .feed-tabs { overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; padding: 6px 10px !important; scrollbar-width: none !important; gap: 4px !important; }
+  .logo { font-size: 18px !important; }
+  
+  /* Sport + feed tabs - horizontal scroll */
+  .sport-tabs, .feed-tabs { 
+    overflow-x: auto !important; 
+    -webkit-overflow-scrolling: touch !important; 
+    padding: 6px 10px !important; 
+    scrollbar-width: none !important; 
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
   .sport-tabs::-webkit-scrollbar, .feed-tabs::-webkit-scrollbar { display: none !important; }
   .sport-tab, .feed-tab { font-size: 11px !important; padding: 5px 10px !important; white-space: nowrap !important; flex-shrink: 0 !important; }
-  .game-card { padding: 12px 12px !important; margin: 0 !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; }
-  .score { font-size: 26px !important; }
-  .team-name { font-size: 12px !important; }
+  
+  /* Game cards - full width, no overflow */
+  .game-card { 
+    padding: 14px 12px !important; 
+    margin: 0 !important; 
+    border-radius: 0 !important; 
+    border-left: none !important; 
+    border-right: none !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+  
+  /* Score row */
+  .score-row { width: 100% !important; box-sizing: border-box !important; }
+  .team-name { font-size: 12px !important; max-width: 90px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
   .team-logo { width: 32px !important; height: 32px !important; }
-  .pick-btns { flex-direction: column !important; gap: 8px !important; }
-  .pick-btn { padding: 10px 12px !important; }
-  .odds-row { flex-wrap: wrap !important; justify-content: center !important; gap: 4px !important; }
-  .odds-chip { font-size: 10px !important; padding: 2px 6px !important; }
+  .score { font-size: 24px !important; }
+  .score-center { padding: 0 6px !important; min-width: 80px !important; }
+  
+  /* Odds row */
+  .odds-row { flex-wrap: wrap !important; justify-content: center !important; gap: 4px !important; width: 100% !important; }
+  .odds-chip { font-size: 10px !important; padding: 2px 6px !important; white-space: nowrap !important; }
+  
+  /* Pick buttons - stack vertically */
+  .pick-btns { 
+    flex-direction: column !important; 
+    gap: 8px !important; 
+    width: 100% !important;
+  }
+  .pick-btn { 
+    padding: 12px !important; 
+    width: 100% !important; 
+    box-sizing: border-box !important;
+    text-align: center !important;
+  }
+  .pick-btn-team { font-size: 14px !important; font-weight: 600 !important; }
+  .pick-btn-odds { font-size: 12px !important; }
+  .pick-btn-reward { font-size: 11px !important; }
+  
+  /* Card actions */
   .card-actions { gap: 6px !important; flex-wrap: wrap !important; }
   .act-btn { font-size: 10px !important; padding: 5px 8px !important; }
-  .picks-bar { padding: 6px 10px !important; }
-  .compliance-bar { font-size: 9px !important; padding: 3px 8px !important; }
-  #feedContent { padding-bottom: 70px !important; }
+  
+  /* Picks bar */
+  .picks-bar { padding: 6px 10px !important; flex-wrap: wrap !important; gap: 4px !important; }
+  .picks-bar-left { font-size: 10px !important; }
+  
+  /* Feed padding for bottom nav */
+  #feedContent { padding-bottom: 80px !important; }
+  
+  /* Drop store */
   .rewards-grid { grid-template-columns: 1fr !important; }
+  .reward-card { padding: 14px !important; }
+  
+  /* Stats */
   .stats-grid { grid-template-columns: 1fr 1fr !important; }
+  .stats-table { font-size: 11px !important; }
+  .stats-table th, .stats-table td { padding: 5px 6px !important; }
+  
+  /* Pages */
+  #leaderboardPage, #profilePage, #rewardsPage { padding: 12px 12px 80px !important; }
+  
+  /* Auth modal */
+  #authOverlay > div { width: 95% !important; padding: 1.5rem 1.2rem !important; margin: 0 auto !important; }
+  
+  /* Auth gate */
+  #authGate { padding: 1.5rem !important; }
+  
+  /* Show mobile nav */
   .mobile-nav { display: flex !important; }
 }
 
@@ -469,7 +545,7 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
 <div class="toast" id="toast"></div>
 
 <!-- COMPLIANCE BAR -->
-<div class="compliance-bar" style="position:fixed;top:0;left:0;right:0;z-index:201;">
+<div class="compliance-bar" style="position:fixed;top:0;left:0;right:0;z-index:201;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">
   🎟️ FREE TO PLAY · NO PURCHASE NECESSARY · <span>Not a gambling platform · Tickets have no cash value</span>
 </div>
 
