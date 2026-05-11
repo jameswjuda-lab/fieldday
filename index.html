@@ -407,6 +407,61 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
 @media(max-width:1050px){.app{grid-template-columns:200px 1fr 250px;}}
 @media(max-width:820px){.app{grid-template-columns:1fr;}.sidebar-left,.sidebar-right{display:none;}.mobile-nav{display:block;}.feed{padding-bottom:70px;}.nav-center{display:none;}nav{padding:0 1rem;}.logo-tagline{display:none;}.drops-grid{grid-template-columns:1fr 1fr;}}
 @media(max-width:500px){.drops-grid{grid-template-columns:1fr;}.stat-row{grid-template-columns:1fr 1fr;}.earn-grid{grid-template-columns:repeat(3,1fr);}}
+
+/* ── MOBILE LAYOUT ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  .sidebar-left, .sidebar-right { display: none !important; }
+  .app-grid { grid-template-columns: 1fr !important; }
+  .main-content { padding: 0 !important; min-width: 0 !important; border: none !important; }
+  .top-nav { padding: 0 10px !important; height: 50px !important; }
+  .nav-center { display: none !important; }
+  .logo-tagline { display: none !important; }
+  .sport-tabs, .feed-tabs { overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; padding: 6px 10px !important; scrollbar-width: none !important; gap: 4px !important; }
+  .sport-tabs::-webkit-scrollbar, .feed-tabs::-webkit-scrollbar { display: none !important; }
+  .sport-tab, .feed-tab { font-size: 11px !important; padding: 5px 10px !important; white-space: nowrap !important; flex-shrink: 0 !important; }
+  .game-card { padding: 12px 12px !important; margin: 0 !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; }
+  .score { font-size: 26px !important; }
+  .team-name { font-size: 12px !important; }
+  .team-logo { width: 32px !important; height: 32px !important; }
+  .pick-btns { flex-direction: column !important; gap: 8px !important; }
+  .pick-btn { padding: 10px 12px !important; }
+  .odds-row { flex-wrap: wrap !important; justify-content: center !important; gap: 4px !important; }
+  .odds-chip { font-size: 10px !important; padding: 2px 6px !important; }
+  .card-actions { gap: 6px !important; flex-wrap: wrap !important; }
+  .act-btn { font-size: 10px !important; padding: 5px 8px !important; }
+  .picks-bar { padding: 6px 10px !important; }
+  .compliance-bar { font-size: 9px !important; padding: 3px 8px !important; }
+  #feedContent { padding-bottom: 70px !important; }
+  .rewards-grid { grid-template-columns: 1fr !important; }
+  .stats-grid { grid-template-columns: 1fr 1fr !important; }
+  .mobile-nav { display: flex !important; }
+}
+
+/* Mobile bottom nav */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 300;
+  background: var(--surface);
+  border-top: 1px solid var(--border2);
+  padding: 6px 0 8px;
+  justify-content: space-around;
+}
+.mob-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 9px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.mob-nav-item.active { color: var(--green); }
+.mob-nav-item .mob-icon { font-size: 20px; }
 </style>
 </head>
 <body>
@@ -858,9 +913,10 @@ const sb = {
   _user: JSON.parse(localStorage.getItem('fd-sb-user') || 'null'),
 
   _h() {
+    const token = this._token || localStorage.getItem('fd-sb-token') || SUPABASE_KEY;
     return {
       'apikey': SUPABASE_KEY,
-      'Authorization': 'Bearer ' + (this._token || SUPABASE_KEY),
+      'Authorization': 'Bearer ' + token,
       'Content-Type': 'application/json',
       'Prefer': 'return=representation',
     };
@@ -1457,15 +1513,14 @@ async function fetchRealOdds() {
 }
 
 function getGameOdds(game) {
-  const key = `${game.home.name}-${game.away.name}`.toLowerCase();
-  // Try exact match first
-  if (oddsCache[key]) return oddsCache[key];
-  // Try partial match
+  if (!game?.home?.name || !game?.away?.name) return null;
+  const homeLast = game.home.name.toLowerCase().split(' ').pop();
+  const awayLast = game.away.name.toLowerCase().split(' ').pop();
+  // Try partial match on city or nickname
   for (const [k, v] of Object.entries(oddsCache)) {
-    if (k.includes(game.home.name.toLowerCase().split(' ').pop()) &&
-        k.includes(game.away.name.toLowerCase().split(' ').pop())) {
-      return v;
-    }
+    const hasHome = k.includes(homeLast) || k.includes(game.home.short?.toLowerCase());
+    const hasAway = k.includes(awayLast) || k.includes(game.away.short?.toLowerCase());
+    if (hasHome && hasAway) return v;
   }
   return null;
 }
@@ -1476,13 +1531,16 @@ function getOddsContext(game, side) {
   if (realOdds?.homeML && realOdds?.awayML) {
     const ml = side === 'home' ? realOdds.homeML : realOdds.awayML;
     const isUnderdog = ml > 0;
-    let ticketReward = 15;
-    if (ml >= 300) ticketReward = 50;
-    else if (ml >= 200) ticketReward = 35;
-    else if (ml >= 100) ticketReward = 25;
-    else if (ml <= -300) ticketReward = 8;
-    else if (ml <= -200) ticketReward = 10;
-    else ticketReward = 15;
+    // Scale tickets: big underdog = big reward, heavy favorite = small reward
+    let ticketReward;
+    if (ml >= 400) ticketReward = 75;       // massive underdog +400
+    else if (ml >= 300) ticketReward = 50;  // big underdog +300
+    else if (ml >= 200) ticketReward = 35;  // underdog +200
+    else if (ml >= 100) ticketReward = 25;  // slight underdog +100
+    else if (ml >= -110) ticketReward = 15; // pick em
+    else if (ml >= -200) ticketReward = 12; // slight favorite
+    else if (ml >= -300) ticketReward = 10; // favorite
+    else ticketReward = 8;                  // heavy favorite -300+
     const multiplier = streak >= 30 ? 5 : streak >= 14 ? 3 : streak >= 7 ? 2 : 1;
     return { ml, isUnderdog, ticketReward: Math.round(ticketReward * multiplier), multiplier, real: true };
   }
@@ -3813,5 +3871,23 @@ function renderProfilePage() {
   }
 }
 </script>
+
+<nav class="mobile-nav" id="mobileNav">
+  <div class="mob-nav-item active" id="mnFeed" onclick="setFeed('upcoming');syncFeedActive('upcoming');document.querySelectorAll('.mob-nav-item').forEach(x=>x.classList.remove('active'));this.classList.add('active')">
+    <span class="mob-icon">⭐</span>Games
+  </div>
+  <div class="mob-nav-item" id="mnLive" onclick="setFeed('live');syncFeedActive('live');document.querySelectorAll('.mob-nav-item').forEach(x=>x.classList.remove('active'));this.classList.add('active')">
+    <span class="mob-icon">🔴</span>Live
+  </div>
+  <div class="mob-nav-item" id="mnLB" onclick="showView('leaderboard');document.querySelectorAll('.mob-nav-item').forEach(x=>x.classList.remove('active'));this.classList.add('active')">
+    <span class="mob-icon">🏆</span>Ranks
+  </div>
+  <div class="mob-nav-item" id="mnDrops" onclick="showView('rewards');document.querySelectorAll('.mob-nav-item').forEach(x=>x.classList.remove('active'));this.classList.add('active')">
+    <span class="mob-icon">🎁</span>Drops
+  </div>
+  <div class="mob-nav-item" id="mnMe" onclick="showView('profile');document.querySelectorAll('.mob-nav-item').forEach(x=>x.classList.remove('active'));this.classList.add('active')">
+    <span class="mob-icon">👤</span>Me
+  </div>
+</nav>
 </body>
 </html>
