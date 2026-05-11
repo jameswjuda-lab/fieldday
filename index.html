@@ -438,23 +438,78 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
   /* Picks bar */
   .picks-bar { padding: 8px 12px !important; flex-wrap: wrap !important; }
   
-  /* Game cards */
-  .game-card { padding: 14px 12px !important; margin: 0 !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; width: 100vw !important; box-sizing: border-box !important; overflow: hidden !important; }
-  .team-name { font-size: 12px !important; max-width: 110px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
-  .team-logo { width: 30px !important; height: 30px !important; }
-  .score { font-size: 24px !important; }
-  .score-center { padding: 0 4px !important; }
-  .odds-row { flex-wrap: wrap !important; justify-content: center !important; gap: 4px !important; }
-  .odds-chip { font-size: 10px !important; padding: 2px 6px !important; }
+  /* Game cards — Fliff-style layout */
+  .game-card { 
+    padding: 0 !important; 
+    margin: 0 0 8px !important; 
+    border-radius: 12px !important; 
+    border: 1px solid var(--border2) !important;
+    margin: 6px 10px !important;
+    overflow: hidden !important;
+    width: calc(100vw - 20px) !important;
+    box-sizing: border-box !important;
+  }
   
-  /* Pick buttons - stack vertically, full width */
-  .pick-btns { flex-direction: column !important; gap: 8px !important; }
-  .pick-btn { width: 100% !important; box-sizing: border-box !important; padding: 12px !important; text-align: center !important; }
-  .pick-btn-team { font-size: 14px !important; }
+  /* Hide desktop score row on mobile */
+  .score-row { display: none !important; }
+  .odds-row { display: none !important; }
+  
+  /* Show mobile-specific pick UI */
+  .mob-game-card { display: block !important; }
+  
+  /* Pick buttons — Fliff style rows */
+  .pick-btns { 
+    flex-direction: column !important; 
+    gap: 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  .pick-btn {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 12px 14px !important;
+    border-radius: 0 !important;
+    border: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    background: var(--surface2) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    text-align: left !important;
+    gap: 10px !important;
+  }
+  .pick-btn:last-child { border-bottom: none !important; }
+  .pick-btn:hover, .pick-btn:active { background: var(--surface) !important; filter: none !important; }
+  .pick-btn-left { display: flex !important; align-items: center !important; gap: 10px !important; flex: 1 !important; }
+  .pick-btn-team { 
+    font-size: 14px !important; 
+    font-weight: 600 !important;
+    color: var(--text) !important;
+    white-space: normal !important;
+    text-align: left !important;
+    line-height: 1.3 !important;
+  }
+  .pick-btn-odds-pill {
+    background: var(--surface) !important;
+    border: 1px solid var(--border2) !important;
+    border-radius: 8px !important;
+    padding: 6px 12px !important;
+    text-align: center !important;
+    min-width: 60px !important;
+    flex-shrink: 0 !important;
+  }
+  .pick-btn-reward { font-size: 11px !important; color: var(--green) !important; margin-top: 1px !important; }
+  
+  /* Card meta row */
+  .card-meta { padding: 8px 14px !important; display: flex !important; align-items: center !important; justify-content: space-between !important; border-bottom: 1px solid var(--border) !important; }
   
   /* Card actions */
-  .card-actions { gap: 6px !important; }
+  .card-actions { padding: 8px 14px !important; gap: 8px !important; }
   .act-btn { font-size: 10px !important; padding: 4px 8px !important; }
+  
+  /* VS separator */
+  .pick-vs { display: none !important; }
   
   /* Content padding for bottom nav */
   #feedContent, #leaderboardPage, #profilePage, #rewardsPage { padding-bottom: 80px !important; }
@@ -472,6 +527,22 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
   
   /* Show mobile nav */
   .fd-mobile-nav { display: flex !important; }
+  /* Show mobile card, hide desktop card */
+  .mob-card-view { display: block !important; }
+  .desk-card-view { display: none !important; }
+
+  /* ── MOBILE GAME CARD — Fliff style ── */
+  .game-card { padding: 0 !important; }
+  .game-card-inner { display: none !important; }
+  .mob-game-header { display: block !important; }
+  .mob-game-card { display: block !important; }
+  
+  /* Hide desktop pick buttons */
+  .pick-btns { display: none !important; }
+  .odds-row { display: none !important; }
+  
+  /* Show mobile pick rows */
+  .mob-pick-row { display: flex !important; }
 }
 
 /* Mobile header bar */
@@ -487,6 +558,80 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
   justify-content: space-between;
   height: 50px;
   box-sizing: border-box;
+}
+
+/* Mobile game card rows */
+.mob-game-card { display: none; padding: 0; }
+.mob-pick-row {
+  display: none;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.mob-pick-row:hover, .mob-pick-row:active { background: var(--surface2); }
+.mob-pick-row .mob-team-logo {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.mob-pick-row .mob-team-logo-fb {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; color: var(--muted2);
+  flex-shrink: 0;
+}
+.mob-pick-row .mob-team-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 0;
+}
+.mob-pick-row .mob-team-record {
+  font-size: 10px;
+  color: var(--muted);
+}
+.mob-ml-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  min-width: 56px;
+  text-align: center;
+  transition: all 0.15s;
+}
+.mob-ml-btn:hover { background: var(--green); color: #fff; border-color: var(--green); }
+.mob-ml-btn.picked { background: var(--green); color: #fff; border-color: var(--green); }
+.mob-ml-btn.underdog { color: var(--green); border-color: rgba(92,184,92,0.4); }
+.mob-card-view { display: none; }
+.desk-card-view { display: block; }
+.mob-card-footer {
+  display: none;
+  padding: 6px 14px 10px;
+  font-size: 10px;
+  color: var(--muted);
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  border-bottom: 3px solid var(--border);
+  margin-bottom: 4px;
+}
+@media (max-width: 768px) {
+  .mob-card-footer { display: flex !important; }
 }
 
 /* Mobile bottom nav */
@@ -1800,7 +1945,61 @@ function gameCardHtml(g, i) {
   const rxn = reactions[g.id] || (reactions[g.id] = Math.floor(Math.random()*30000+400));
   const headlineHtml = g.headline ? `<div class="game-headline">${esc(g.headline)}</div>` : '';
 
-  return `<div class="game-card" style="animation-delay:${delay}s">
+  // Mobile Fliff-style rows
+  const awayCtxM = getOddsContext(g,'away'), homeCtxM = getOddsContext(g,'home');
+  const awayMLm = awayCtxM.ml>0?'+'+awayCtxM.ml:''+awayCtxM.ml;
+  const homeMLm = homeCtxM.ml>0?'+'+homeCtxM.ml:''+homeCtxM.ml;
+  const awayPickedM = myPicks[g.id]?.side==='away', homePickedM = myPicks[g.id]?.side==='home';
+  const canPick = picksUsedToday < MAX_DAILY_PICKS && !myPicks[g.id];
+  const mobLogoA = g.away.logo?`<img src="${esc(g.away.logo)}" style="width:28px;height:28px;border-radius:50%;object-fit:contain;background:var(--surface2);border:1px solid var(--border);flex-shrink:0" onerror="this.style.display='none'" />`:`<div style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--muted2);flex-shrink:0">${esc(g.away.short?.slice(0,3)||'?')}</div>`;
+  const mobLogoH = g.home.logo?`<img src="${esc(g.home.logo)}" style="width:28px;height:28px;border-radius:50%;object-fit:contain;background:var(--surface2);border:1px solid var(--border);flex-shrink:0" onerror="this.style.display='none'" />`:`<div style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--muted2);flex-shrink:0">${esc(g.home.short?.slice(0,3)||'?')}</div>`;
+  const mobTime = g.isLive?`<span style="color:var(--live);font-weight:700;font-size:10px">● ${esc(g.status)}</span>`:g.isFinal?'<span style="font-size:10px;color:var(--muted)">Final</span>':`<span style="color:var(--green);font-size:10px">${fmtTime(g.date)}</span>`;
+
+  return `<div class="game-card" data-gameid="${g.id}" style="animation-delay:${delay}s">
+
+    <!-- MOBILE VIEW (hidden on desktop) -->
+    <div class="mob-card-view">
+      <div style="padding:8px 14px 6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${mobTime}
+        ${g.broadcast?`<span style="background:var(--surface2);padding:1px 6px;border-radius:3px;font-size:9px;color:var(--muted)">${esc(g.broadcast)}</span>`:''}
+        <span style="font-size:9px;color:var(--muted);margin-left:auto">${SMETA[g.sport]?.icon||''} ${SMETA[g.sport]?.label||''}</span>
+      </div>
+      ${!g.isFinal?`
+      <div class="mob-pick-row" onclick="${canPick?`doPick('${g.id}','away',this)`:''}" style="padding:10px 14px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--border);cursor:${canPick?'pointer':'default'}">
+        ${mobLogoA}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(g.away.name)}</div>
+          <div style="font-size:10px;color:var(--muted)">${esc(g.away.rec)}</div>
+        </div>
+        ${awayPickedM?`<div style="font-size:10px;color:var(--green)">+${awayCtxM.ticketReward} 🎟</div>`:''}
+        <div onclick="event.stopPropagation();${canPick?`doPick('${g.id}','away',this)`:''}" style="padding:6px 12px;border-radius:8px;border:1px solid ${awayPickedM?'var(--green)':awayCtxM.isUnderdog?'rgba(92,184,92,0.4)':'var(--border2)'};background:${awayPickedM?'var(--green)':'var(--surface2)'};color:${awayPickedM?'#fff':awayCtxM.isUnderdog?'var(--green)':'var(--text)'};font-size:12px;font-weight:700;min-width:52px;text-align:center;cursor:${canPick?'pointer':'default'}">${awayPickedM?'✓':awayMLm}</div>
+      </div>
+      <div class="mob-pick-row" onclick="${canPick?`doPick('${g.id}','home',this)`:''}" style="padding:10px 14px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--border);cursor:${canPick?'pointer':'default'}">
+        ${mobLogoH}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(g.home.name)}</div>
+          <div style="font-size:10px;color:var(--muted)">${esc(g.home.rec)}</div>
+        </div>
+        ${homePickedM?`<div style="font-size:10px;color:var(--green)">+${homeCtxM.ticketReward} 🎟</div>`:''}
+        <div onclick="event.stopPropagation();${canPick?`doPick('${g.id}','home',this)`:''}" style="padding:6px 12px;border-radius:8px;border:1px solid ${homePickedM?'var(--green)':homeCtxM.isUnderdog?'rgba(92,184,92,0.4)':'var(--border2)'};background:${homePickedM?'var(--green)':'var(--surface2)'};color:${homePickedM?'#fff':homeCtxM.isUnderdog?'var(--green)':'var(--text)'};font-size:12px;font-weight:700;min-width:52px;text-align:center;cursor:${canPick?'pointer':'default'}">${homePickedM?'✓':homeMLm}</div>
+      </div>
+      `:`
+      <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--border)">
+        ${mobLogoA}
+        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">${esc(g.away.name)}</div><div style="font-size:10px;color:var(--muted)">${esc(g.away.rec)}</div></div>
+        <div style="font-family:var(--font-display);font-size:24px;color:${g.awayWins?'var(--text)':'var(--muted)'};font-weight:400">${g.away.score}</div>
+      </div>
+      <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--border)">
+        ${mobLogoH}
+        <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--text)">${esc(g.home.name)}</div><div style="font-size:10px;color:var(--muted)">${esc(g.home.rec)}</div></div>
+        <div style="font-family:var(--font-display);font-size:24px;color:${g.homeWins?'var(--text)':'var(--muted)'};font-weight:400">${g.home.score}</div>
+      </div>
+      `}
+      ${myPicks[g.id]?`<div style="padding:6px 14px 8px;font-size:10px;color:var(--green)">✓ ${esc(myPicks[g.id].side==='away'?g.away.name:g.home.name)} picked · ${g.isFinal?(myPicks[g.id].ticketsAwarded?'Tickets awarded!':'Result pending'):'Pending game'}</div>`:''}
+    </div>
+
+    <!-- DESKTOP VIEW (hidden on mobile) -->
+    <div class="desk-card-view">
     <div class="card-meta">
       <span class="sport-badge ${m.cls}">${m.icon} ${m.label}</span>
       ${metaHtml}
