@@ -132,18 +132,18 @@ nav{position:fixed;top:27px;left:0;right:0;z-index:200;display:flex;align-items:
 .broadcast-badge{font-size:10px;color:var(--muted);background:var(--surface2);padding:2px 7px;border-radius:3px;}
 
 /* SCORE ROW */
-.score-row{display:flex;align-items:center;gap:0;margin-bottom:12px;}
-.team-side{flex:1;display:flex;align-items:center;gap:10px;min-width:0;}
+.score-row{display:flex;align-items:center;gap:0;margin-bottom:12px;width:100%;}
+.team-side{flex:2;display:flex;align-items:center;gap:10px;min-width:0;overflow:hidden;}
 .team-side.right{flex-direction:row-reverse;}
 .team-logo{width:36px;height:36px;border-radius:50%;object-fit:contain;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;}
 .team-logo-fb{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;background:var(--surface2);border:1px solid var(--border);color:var(--muted2);}
 .team-info{}
-.team-name{font-size:15px;font-weight:600;color:var(--text);line-height:1.2;}
+.team-name{font-size:15px;font-weight:600;color:var(--text);line-height:1.2;white-space:normal;overflow:visible;}
 .team-record{font-size:11px;color:var(--muted);}
 .team-status{font-size:10px;margin-top:2px;}
 .status-injured{color:var(--live);}
 .status-questionable{color:var(--gold);}
-.score-center{display:flex;flex-direction:column;align-items:center;padding:0 1.25rem;flex-shrink:0;}
+.score-center{text-align:center;padding:0 8px;flex-shrink:0;min-width:110px;max-width:140px;}
 .score-nums{display:flex;align-items:baseline;gap:8px;}
 .score-n{font-family:var(--font-display);font-size:32px;letter-spacing:1px;line-height:1;color:var(--text);transition:all 0.3s;}
 .score-n.winner{color:var(--green-bright);}
